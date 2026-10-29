@@ -1,0 +1,202 @@
+/* Passerelle 4.2 · Daily workspace and public entry. */
+.authenticated .topbar{height:68px}
+.authenticated #app{padding-top:68px}
+.portal-body{padding-top:28px}
+.page-heading{margin-bottom:24px}
+.page-heading h1{font-size:27px;letter-spacing:-1px}
+.authenticated #app[data-page=school] .page-heading{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.sidebar-beta{display:inline-flex;margin:0 13px 22px;padding:7px 10px;border:1px solid #b7d18c35;border-radius:50px;font-size:8px;font-weight:750;letter-spacing:1.3px;color:#d9ef78}
+.sidebar .nav-caption{margin-top:36px}
+.nav-link{min-height:49px}
+.overview-welcome.school-welcome{padding:0;background:none;border:0;border-radius:0;box-shadow:none;overflow:visible;gap:30px;align-items:center}
+.overview-welcome .welcome-content{display:block;position:static;flex:1;min-width:0}
+.overview-welcome .welcome-label{display:block;font-size:9px;color:#66805e;letter-spacing:1.7px;margin-bottom:10px}
+.overview-welcome h2{font-size:36px;line-height:1.25;letter-spacing:-1.5px;overflow-wrap:anywhere;margin:0 0 9px}
+.overview-welcome .hello-wave{font-size:25px;margin-left:12px;vertical-align:middle}
+.overview-welcome p{font-size:13px;line-height:1.8;color:var(--muted);margin:0}
+.overview-day{display:flex;flex-direction:column;gap:7px;align-items:flex-start;padding:15px 19px;border:1px solid var(--line);background:#fffefa;border-radius:14px;flex-shrink:0;min-width:240px}
+.overview-today{display:flex;align-items:center;gap:7px;font-size:10px;color:#6b795f}
+.overview-today .icon{width:14px;height:14px}
+.overview-day>strong{font-size:13px;font-weight:750;text-transform:capitalize;color:var(--ink)}
+.overview-freshness{display:flex;align-items:center;gap:7px;font-size:9px;color:var(--muted);margin-top:2px}
+.home-shortcuts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:24px 0 18px}
+.shortcut-card{display:flex;align-items:center;gap:11px;min-height:81px;border:1px solid var(--line);border-radius:14px;background:#fffefa;padding:15px;color:var(--ink);text-align:left;transition:transform .15s,border-color .15s,box-shadow .15s}
+.shortcut-card:hover{transform:translateY(-2px);border-color:#a5ba8b;box-shadow:0 5px 15px #153d3808}
+.shortcut-card:active{transform:translateY(0)}
+.shortcut-card>span:nth-child(2){flex:1;min-width:0}
+.shortcut-card strong{display:block;font-size:13px;font-weight:750;line-height:1.6;overflow-wrap:anywhere}
+.shortcut-card small{display:block;font-size:10px;font-weight:400;line-height:1.7;color:var(--muted);margin-top:2px}
+.shortcut-card>.icon{width:15px;height:15px;color:#829074}
+.shortcut-icon{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;border-radius:11px}
+.shortcut-icon .icon{width:18px;height:18px}
+.shortcut-week{background:#e5ecfa;color:#34547e}
+.shortcut-work{background:#fae7df;color:#8a4d34}
+.shortcut-bag{background:#eaf0d1;color:#536723}
+.shortcut-study{background:#e7eee7;color:#3f6b50}
+.school-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);background:#eeeee4;border-radius:14px;padding:15px 0;margin:0 0 27px}
+.school-stats .stat-card{display:flex;gap:12px;align-items:center;padding:0 22px;border:0;border-right:1px solid #d8dfce;background:none;border-radius:0;box-shadow:none;min-height:42px}
+.school-stats .stat-card:last-child{border:0}
+.school-stats .stat-heading{margin:0}
+.school-stats .stat-heading>span:last-child{display:none}
+.school-stats .stat-icon{background:#fffefa;width:32px;height:32px;border-radius:10px}
+.school-stats .stat-value{display:flex;align-items:baseline;gap:9px;margin:0;flex-wrap:wrap}
+.school-stats .stat-value>strong{font-size:26px;line-height:1.2;margin:0;letter-spacing:-.7px}
+.school-stats .stat-value>span{font-size:11px;margin:0;line-height:1.6}
+.workspace-heading{margin:0 0 15px}
+.workspace-heading h2{font-size:15px;letter-spacing:-.4px}
+.workspace-tabs{padding:5px;gap:5px;border-radius:12px}
+.workspace-tab{min-height:42px;font-size:11px}
+.workspace-panel{padding-top:23px;scroll-margin-top:90px}
+#workspace{scroll-margin-top:90px}
+.tomorrow-heading{margin-bottom:16px}
+.tomorrow-heading h2{font-size:20px;letter-spacing:-.7px}
+.dashboard-grid{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(0,1fr) minmax(270px,.94fr);gap:17px;align-items:start}
+.dashboard-grid .preparation-grid{display:contents}
+.dashboard-grid>.email-card{margin:0;padding:22px}
+.dashboard-grid .day-courses-card,.dashboard-grid .day-work-card{padding:22px;min-width:0;border-radius:16px}
+.dashboard-grid .card-heading{font-size:16px;letter-spacing:-.3px;gap:9px;margin-bottom:20px}
+.dashboard-grid .heading-icon{width:30px;height:30px;border-radius:9px}
+.dashboard-grid .heading-icon .icon{width:16px;height:16px}
+.dashboard-grid .tomorrow-courses li{padding:15px 11px;gap:12px;border:0;border-left:3px solid var(--subject-color);border-radius:0 10px 10px 0;background:#f6f7ef;margin-bottom:11px;min-height:82px}
+.dashboard-grid .tomorrow-courses li:last-child{margin-bottom:0}
+.dashboard-grid .tomorrow-courses strong{font-size:13px;line-height:1.7}
+.dashboard-grid .course-hours{font-size:12px;min-width:40px}
+.dashboard-grid .course-hours small{font-size:10px}
+.dashboard-grid .course-info>span{font-size:10px}
+.dashboard-grid .work-item{padding:14px;border-radius:11px;margin-bottom:12px}
+.dashboard-grid .work-item>strong{font-size:13px;line-height:1.8;letter-spacing:0}
+.dashboard-grid .work-kind,.dashboard-grid .work-item-heading time{font-size:9px;line-height:1.8}
+.dashboard-grid .work-item-heading{gap:8px;align-items:flex-start}
+.dashboard-grid .work-item-heading time{max-width:80px;text-align:right}
+.dashboard-grid .work-meta{margin:10px 0}
+.dashboard-grid .work-actions .text-button{font-size:10px;min-height:30px}
+.dashboard-grid .work-instructions summary{font-size:10px}
+.dashboard-grid .email-title{font-size:16px;gap:8px;letter-spacing:-.4px}
+.dashboard-grid .mail-icon{width:29px;height:29px;border-radius:9px}
+.dashboard-grid .email-card .section-heading{align-items:flex-start;gap:8px;margin-bottom:17px}
+.dashboard-grid .email-card .section-heading>.badge{font-size:8px;max-width:105px;padding:4px 6px}
+.dashboard-grid .email-card .feature-intro{font-size:12px;line-height:1.9;margin-bottom:19px}
+.dashboard-grid .email-fields{grid-template-columns:1fr;gap:0}
+.dashboard-grid .email-card input{font-size:13px;min-height:42px}
+.dashboard-grid .email-card label{font-size:11px;line-height:1.8}
+.dashboard-grid .email-card .field{margin-bottom:15px}
+.dashboard-grid .email-card .small{font-size:10px;line-height:1.9}
+.dashboard-grid .email-actions{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin:18px 0}
+.dashboard-grid .email-actions .button{width:100%;font-size:12px;min-height:39px}
+.dashboard-grid .email-card .check-label input{min-height:15px;height:15px;width:15px}
+#panel-work>.work-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+#panel-work>.work-list>.work-item{margin:0;min-width:0}
+.setup-journey{border:1px solid #d4dfc3;border-radius:18px;background:#fffefa;padding:25px;margin:0 0 30px;display:grid;grid-template-columns:1fr 2fr;gap:30px}
+.setup-intro .eyebrow{font-size:8px;line-height:1.9;letter-spacing:1.3px;margin-bottom:12px}
+.setup-intro h3{font-size:27px;letter-spacing:-1px;line-height:1.3;margin:0 0 13px}
+.setup-intro p{font-size:12px;line-height:1.9;color:var(--muted);margin:0}
+.setup-journey ol{list-style:none;margin:0;padding:0}
+.setup-journey li{display:flex;align-items:center;gap:13px;border-bottom:1px solid var(--line);padding:13px 0}
+.setup-journey li:first-child{padding-top:0}
+.setup-journey li:last-child{padding-bottom:0;border:0}
+.setup-number{width:30px;height:30px;flex-shrink:0;border:1px solid #d9dfce;border-radius:50%;display:grid;place-items:center;color:#6b7d5a;font-size:10px;font-weight:700;background:#f6f7ef}
+.setup-number>.icon{width:16px;height:16px}
+.step-complete .setup-number{background:#eaf0d1;color:#436426;border-color:#d1dfb1}
+.setup-journey li>div{flex:1;min-width:0}
+.setup-journey li strong{font-size:12px;font-weight:750;display:block;line-height:1.8}
+.setup-journey li div>span{font-size:10px;line-height:1.8;color:var(--muted);display:block;margin-top:2px}
+.setup-journey li .button{font-size:11px;padding:9px 12px;min-height:38px}
+.setup-journey li .text-button{font-size:10px}
+.setup-journey li .text-button>.icon{width:13px;height:13px;vertical-align:middle}
+.registration-card{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:40px;padding:28px;margin:0 0 25px;border-color:#d4dfc3}
+.registration-copy .eyebrow{font-size:8px;margin-bottom:11px}
+.registration-copy h3{font-size:27px;letter-spacing:-1px;margin:0 0 11px;line-height:1.4}
+.registration-copy p,.registration-card form>p{font-size:12px;line-height:1.9;color:var(--muted);margin:0 0 19px}
+.signup-share{display:flex;gap:13px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:11px;background:#f6f7ef}
+.signup-share code{font-size:10px;line-height:1.9;overflow-wrap:anywhere;flex:1;min-width:0;color:#55724c}
+.signup-share .button{min-height:36px;font-size:10px;padding:8px 11px;flex-shrink:0}
+.registration-copy p.registration-beta{font-size:10px;line-height:1.9;margin:14px 0 0;color:#66804e}
+.registration-card form{border-left:1px solid var(--line);padding-left:30px;display:flex;flex-direction:column;align-items:flex-start}
+.registration-card form>.badge{margin-bottom:23px}
+.registration-card .check-label{font-size:12px;font-weight:650;line-height:1.9;margin-bottom:10px}
+.registration-card form>p{font-size:11px}
+.registration-card form>.button{margin-top:auto}
+.public-auth.auth-grid{min-height:640px;border-radius:24px;background:transparent;border:0;box-shadow:none;gap:55px;align-items:center;overflow:visible}
+.public-auth .hero{background:transparent;padding:25px 0;justify-content:center}
+.public-auth .hero h1{font-size:clamp(48px,5.2vw,68px);line-height:1.07;letter-spacing:-3px;color:#153d38;margin:26px 0 24px}
+.public-auth .hero h1 span{color:#153d38;background:#d9ef78;box-shadow:8px 0 #d9ef78,-3px 0 #d9ef78;border-radius:4px}
+.public-auth .hero .subtitle{color:#63716a;font-size:14px;line-height:1.9;max-width:380px}
+.auth-open-label{display:inline-flex;align-items:center;gap:8px;color:#546d48;font-size:10px;font-weight:650}
+.auth-open-label .status-dot{width:5px;height:5px;background:#758e3d;box-shadow:0 0 0 3px #dce6c3}
+.auth-visual{padding:20px;background:#fffefa;border:1px solid #dfe4d8;border-radius:16px;max-width:390px;margin:30px 0 22px;box-shadow:0 5px 0 #e7ebdc}
+.auth-visual-title{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e5eadc;padding-bottom:13px;margin-bottom:7px;color:#7b896c}
+.auth-visual-title>span{font-size:8px;font-weight:750;letter-spacing:1.5px}
+.auth-visual-title>.icon{width:16px;height:16px}
+.auth-visual-row{display:flex;align-items:center;gap:11px;padding:12px 0}
+.auth-visual-row>div{flex:1}
+.auth-visual-row strong{display:block;font-size:12px;line-height:1.8;color:#214b3e;font-weight:750}
+.auth-visual-row div>span{display:block;font-size:10px;color:#6b7a61;line-height:1.8}
+.auth-visual-row>.icon{width:14px;height:14px;color:#779157}
+.visual-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;flex-shrink:0}
+.visual-icon>.icon{width:17px;height:17px}
+.visual-blue{background:#e5ecfa;color:#34547e}
+.visual-coral{background:#fae7df;color:#8a4d34}
+.visual-lime{background:#eaf0d1;color:#536723}
+.auth-promise{display:flex;gap:23px;align-items:center;margin-top:4px}
+.auth-promise>span{display:flex;gap:6px;align-items:center;font-size:10px;color:#607854}
+.auth-promise .icon{width:13px;height:13px}
+.auth-scope{font-size:10px;line-height:1.9;max-width:350px;color:#6a7b5d;margin:22px 0 0}
+.public-auth .auth-card{padding:32px;background:#fffefa;border:1px solid #dfe4d8;border-radius:20px;box-shadow:0 15px 45px #153d3806;align-self:center;overflow:hidden}
+.auth-modes{display:flex;padding:5px;gap:4px;margin:0 0 30px;border-radius:11px;background:#eeeee4}
+.auth-modes button{font-size:11px;font-weight:650;color:#65775c;flex:1;min-height:39px;border:0;border-radius:8px;background:transparent;padding:9px 7px;line-height:1.7}
+.auth-modes button.selected{background:#fffefa;color:#214b3e;box-shadow:0 2px 5px #153d380a}
+.public-auth .auth-card>.eyebrow{font-size:8px;letter-spacing:1.5px;color:#6a7e55;margin-bottom:13px}
+.public-auth .auth-card h2{font-size:29px;letter-spacing:-1.2px;line-height:1.3;margin-bottom:12px}
+.public-auth .auth-card>p:not(.eyebrow){font-size:12px;line-height:1.9;margin-bottom:25px;color:#63716a}
+.public-auth .auth-card label{font-size:11px;color:#425c45;margin-bottom:8px}
+.public-auth .auth-card input{font-size:13px;min-height:46px;border-radius:10px}
+.public-auth .auth-card .field{margin-bottom:20px}
+.public-auth .auth-card .button.full{min-height:45px;margin-top:6px}
+.field-hint{font-size:9px;line-height:1.8;display:block;color:#788569;margin-top:6px}
+.password-field{position:relative}
+.password-field input{padding-right:78px}
+.password-field>button{border:0;background:none;position:absolute;right:4px;top:3px;height:40px;padding:0 12px;color:#6b7e58;font-size:10px;font-weight:650}
+.public-auth .auth-card .auth-note{font-size:10px!important;line-height:1.9;margin:22px 0 0}
+.bot-field{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;pointer-events:none}
+html[data-theme=dark] .overview-welcome.school-welcome{background:none;border:0}
+html[data-theme=dark] .overview-welcome .welcome-label{color:#b1cb8e}
+html[data-theme=dark] .overview-welcome h2{color:#e5eddf}
+html[data-theme=dark] .overview-welcome p{color:#b1c0b0}
+html[data-theme=dark] .overview-day,html[data-theme=dark] .shortcut-card,html[data-theme=dark] .setup-journey,html[data-theme=dark] .registration-card{background:#1b2e27;border-color:#35483b}
+html[data-theme=dark] .overview-today{color:#b8cc9d}
+html[data-theme=dark] .shortcut-card:hover{border-color:#78945b;box-shadow:none}
+html[data-theme=dark] .shortcut-card strong,html[data-theme=dark] .overview-day>strong{color:#e5eddf}
+html[data-theme=dark] .shortcut-card small,html[data-theme=dark] .overview-freshness{color:#b1c0b0}
+html[data-theme=dark] .shortcut-week{background:#25384c;color:#b5cae7}
+html[data-theme=dark] .shortcut-work{background:#4a362b;color:#ecc2a6}
+html[data-theme=dark] .shortcut-bag{background:#394727;color:#d2e2a4}
+html[data-theme=dark] .shortcut-study{background:#2b4433;color:#c5d9b3}
+html[data-theme=dark] .school-stats{background:#1a2b23;border-color:#35483b}
+html[data-theme=dark] .school-stats .stat-card{background:none;border-right-color:#35483b}
+html[data-theme=dark] .school-stats .stat-icon{background:#2c4030}
+html[data-theme=dark] .dashboard-grid .tomorrow-courses li{background:#23392d;border-color:var(--subject-color)}
+html[data-theme=dark] .setup-number{background:#253b2d;color:#c5d8b2;border-color:#43583b}
+html[data-theme=dark] .step-complete .setup-number{background:#3a512e;color:#d5e7a8;border-color:#536b3f}
+html[data-theme=dark] .signup-share{background:#223b2b;border-color:#425936}
+html[data-theme=dark] .signup-share code{color:#d0dfa9}
+html[data-theme=dark] .registration-copy p.registration-beta{color:#b0ca86}
+html[data-theme=dark] .public-auth.auth-grid{background:none;border:0}
+html[data-theme=dark] .public-auth .hero{background:none}
+html[data-theme=dark] .public-auth .hero h1{color:#e5eddf}
+html[data-theme=dark] .public-auth .hero h1 span{color:#153d38}
+html[data-theme=dark] .public-auth .hero .subtitle,html[data-theme=dark] .auth-scope{color:#b1c0b0}
+html[data-theme=dark] .auth-open-label,html[data-theme=dark] .auth-promise>span{color:#c0d6a1}
+html[data-theme=dark] .auth-visual,html[data-theme=dark] .public-auth .auth-card{background:#1b2e27;border-color:#35483b;box-shadow:none}
+html[data-theme=dark] .auth-visual-title{color:#adc792;border-color:#35483b}
+html[data-theme=dark] .auth-visual-row strong{color:#e5eddf}
+html[data-theme=dark] .auth-visual-row div>span{color:#b1c0b0}
+html[data-theme=dark] .auth-modes{background:#13271e}
+html[data-theme=dark] .auth-modes button{color:#b4ca9c}
+html[data-theme=dark] .auth-modes button.selected{background:#344d31;color:#dfebc4}
+html[data-theme=dark] .public-auth .auth-card>p:not(.eyebrow),html[data-theme=dark] .public-auth .auth-card label{color:#b1c0b0}
+html[data-theme=dark] .public-auth .auth-card>.eyebrow{color:#b0ca86}
+html[data-theme=dark] .field-hint,html[data-theme=dark] .password-field>button{color:#b3c998}
+@media(max-width:1359px){.dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-grid>.email-card{grid-column:1/-1}.dashboard-grid .email-fields{grid-template-columns:1fr 180px;gap:18px}.dashboard-grid .email-actions{flex-direction:row;flex-wrap:wrap;align-items:center}.dashboard-grid .email-actions .button{width:auto}.shortcut-card{padding:12px;gap:9px}.shortcut-card>.icon{display:none}.setup-journey{grid-template-columns:1fr}.setup-journey ol{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.setup-journey li{display:flex;flex-direction:column;align-items:flex-start;border:0;padding:0}.setup-journey li .button{width:100%;margin-top:auto}.public-auth.auth-grid{gap:40px}.public-auth .auth-card{padding:28px}}
+@media(max-width:1050px) and (min-width:781px){.home-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr))}.public-auth.auth-grid{grid-template-columns:minmax(0,1fr) minmax(330px,1fr);gap:30px}.public-auth .hero h1{font-size:48px;letter-spacing:-2.2px}.school-stats .stat-card{padding:0 14px}.school-stats .stat-icon{display:none}.school-stats .stat-value{gap:6px}.registration-card{grid-template-columns:1fr;gap:25px}.registration-card form{border-left:0;border-top:1px solid var(--line);padding:24px 0 0}}
+@media(max-width:780px){.authenticated .topbar{height:70px}.authenticated #app{padding-top:70px}.portal-body{padding-top:23px}.page-heading h1{font-size:25px}.sidebar-beta{display:none}.overview-welcome.school-welcome{display:block;padding:0;gap:0}.overview-welcome .welcome-content{display:block}.overview-welcome .welcome-label{font-size:8px;letter-spacing:1.2px;margin-bottom:9px}.overview-welcome h2{font-size:29px;letter-spacing:-1.1px;margin-bottom:9px}.overview-welcome p{font-size:12px;line-height:1.8}.overview-welcome .hello-wave{font-size:22px;margin-left:10px}.overview-day{margin-top:15px;min-width:0;padding:0;border:0;background:none;flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}.overview-today{font-size:10px}.overview-day>strong{font-size:10px;font-weight:650}.overview-freshness{font-size:9px;margin:0 0 0 auto}.home-shortcuts{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:154px;overflow-x:auto;gap:9px;scroll-snap-type:x proximity;padding:2px 0 7px;scrollbar-width:thin;margin:19px 0 12px}.shortcut-card{scroll-snap-align:start;min-height:61px;padding:10px;gap:8px;border-radius:12px}.shortcut-card strong{font-size:11px;line-height:1.5}.shortcut-card small{display:none}.shortcut-icon{width:28px;height:28px;border-radius:9px}.shortcut-icon>.icon{width:15px;height:15px}.school-stats{padding:13px 0;margin-bottom:24px;border-radius:12px}.school-stats .stat-card{display:block;padding:0 12px;min-height:44px}.school-stats .stat-heading{display:none}.school-stats .stat-value{display:block}.school-stats .stat-value>strong{font-size:24px;line-height:1.1}.school-stats .stat-value>span{font-size:9px;line-height:1.6;display:block;margin-top:5px}.workspace-heading{margin-bottom:13px}.workspace-heading h2{font-size:15px}.workspace-heading>.text-button{font-size:10px}.workspace-tabs{padding:4px;gap:3px}.workspace-tab{min-height:57px;padding:7px 3px;font-size:9px}.workspace-tab .tab-emoji{font-size:15px}.workspace-tab .tab-label{min-height:25px}.workspace-panel{padding-top:21px}.tomorrow-heading .eyebrow{font-size:8px;letter-spacing:1.1px}.tomorrow-heading h2{font-size:20px}.tomorrow-heading>.badge{font-size:9px}.dashboard-grid{grid-template-columns:1fr;gap:17px}.dashboard-grid .day-courses-card,.dashboard-grid .day-work-card,.dashboard-grid>.email-card{padding:21px;grid-column:auto;border-radius:15px}.dashboard-grid .card-heading{font-size:16px;gap:10px}.dashboard-grid .tomorrow-courses li{padding:15px 12px;min-height:78px;gap:14px}.dashboard-grid .tomorrow-courses strong{font-size:13px}.dashboard-grid .course-info>span{font-size:11px}.dashboard-grid .course-hours{font-size:13px;min-width:44px}.dashboard-grid .course-hours small{font-size:11px}.dashboard-grid .work-item{padding:15px}.dashboard-grid .work-item>strong{font-size:13px}.dashboard-grid .work-kind,.dashboard-grid .work-item-heading time{font-size:10px}.dashboard-grid .work-actions .text-button,.dashboard-grid .work-instructions summary{font-size:11px}.dashboard-grid .email-title{font-size:17px}.dashboard-grid .email-card .feature-intro{font-size:12px}.dashboard-grid .email-fields{grid-template-columns:1fr;gap:0}.dashboard-grid .email-card label{font-size:11px}.dashboard-grid .email-card input{font-size:13px;min-height:44px}.dashboard-grid .email-card .small{font-size:11px}.dashboard-grid .email-actions{flex-direction:column;align-items:stretch}.dashboard-grid .email-actions .button{width:100%;font-size:12px;min-height:42px}.dashboard-grid .email-card .section-heading>.badge{font-size:9px}#panel-work>.work-list{grid-template-columns:1fr;gap:13px}.setup-journey{padding:21px;gap:20px;border-radius:15px;margin-bottom:25px}.setup-intro h3{font-size:24px}.setup-intro p{font-size:12px}.setup-journey ol{display:block}.setup-journey li,.setup-journey li:first-child{display:grid;grid-template-columns:30px minmax(0,1fr);gap:8px 12px;padding:16px 0;border-bottom:1px solid var(--line)}.setup-journey li:first-child{padding-top:0}.setup-journey li:last-child{padding-bottom:0;border:0}.setup-journey li>button{grid-column:2;width:auto!important;justify-self:start}.setup-journey li strong{font-size:12px}.setup-journey li div>span{font-size:11px}.setup-journey li .button{font-size:11px;min-height:39px}.registration-card{grid-template-columns:1fr;gap:23px;padding:22px}.registration-copy h3{font-size:25px}.registration-copy .eyebrow{line-height:1.9}.registration-card form{border-left:0;border-top:1px solid var(--line);padding:22px 0 0}.registration-card form>.badge{margin-bottom:18px}.registration-card .check-label{font-size:12px}.registration-card form>p{font-size:12px}.signup-share{align-items:flex-start;flex-direction:column;gap:10px}.signup-share code{font-size:10px;line-height:1.9}.signup-share .button{font-size:11px}.public-auth.auth-grid{grid-template-columns:1fr;gap:24px;min-height:0;max-width:520px;background:none;border:0;overflow:visible}.public-auth .hero{padding:5px 8px 0;background:none}.public-auth .hero h1{font-size:43px;letter-spacing:-2px;margin:19px 0 18px}.public-auth .hero .subtitle{font-size:12px;line-height:1.9;max-width:330px}.auth-open-label{font-size:9px}.auth-visual,.auth-promise{display:none}.auth-scope{font-size:10px;line-height:1.8;margin-top:16px;max-width:300px}.public-auth .auth-card{padding:25px 23px;border-radius:17px}.auth-modes{margin-bottom:25px}.auth-modes button{font-size:10px;min-height:38px}.public-auth .auth-card>.eyebrow{font-size:8px;line-height:1.9;letter-spacing:1.2px}.public-auth .auth-card h2{font-size:27px;letter-spacing:-1px}.public-auth .auth-card>p:not(.eyebrow){font-size:12px;line-height:1.9;margin-bottom:24px}.public-auth .auth-card input{min-height:45px;font-size:13px}.public-auth .auth-card label{font-size:11px}.public-auth .auth-card .field{margin-bottom:18px}.public-auth .auth-card .auth-note{font-size:10px!important;line-height:1.9}.field-hint{font-size:9px}html[data-theme=dark] .overview-day{background:none;border:0}html[data-theme=dark] .public-auth.auth-grid{background:none;border:0}html[data-theme=dark] .public-auth .hero{background:none}}
+@media(prefers-reduced-motion:reduce){.shortcut-card{transition:none}.shortcut-card:hover{transform:none}}

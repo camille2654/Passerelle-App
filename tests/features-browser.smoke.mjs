@@ -1,0 +1,107 @@
+import {openArea,openTool,openMailNotifications} from './simple-navigation.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { createApp } from '../src/server.js';
+import { parisDate, shiftDate } from '../src/work.js';
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agenda-school-browser-'));
+const baseURL = 'http://127.0.0.1:8021/agenda', tomorrow = shiftDate(parisDate(new Date()), 1), sent = [], errors = [];
+let room = 'B204';
+const source = () => [{ date: tomorrow, lessons: [{ id: 'math', title: 'Mathématiques', subject: { label: 'Mathématiques' }, startDateTime: tomorrow + 'T09:00:00Z', endDateTime: tomorrow + 'T10:00:00Z', location: room, canceled: false, teachers: [] }], homeworkAssignments: [
+  { id: 'homework', title: 'Exercices de géométrie', html: '<p>Terminer les exercices 1 et 2.</p>', dueDateTime: tomorrow + 'T09:00:00Z', subject: { label: 'Mathématiques' }, done: false },
+  { id: 'exam', title: 'Contrôle de vocabulaire', html: '<p>Revoir les mots de la semaine.</p>', dueDateTime: tomorrow + 'T09:00:00Z', subject: { label: 'Anglais' }, done: false }
+] }];
+const { app, store, browsers } = createApp({ dataDir: dir, baseURL,
+  syncOptions: { clientFactory: async () => ({ getAgenda: async (id, start, end) => source().filter(d => d.date >= start && d.date <= end) }) },
+  mailOptions: { transportFactory: () => ({ verify: async () => {}, close: () => {}, sendMail: async message => { sent.push(message); return { accepted: [message.to] }; } }) }
+});
+const server = app.listen(8021, '127.0.0.1'); await new Promise(r => server.once('listening', r));
+let browser, page;
+try {
+  browser = await chromium.launch({ headless: true, args: ['--renderer-process-limit=1'] });
+  page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, locale: 'fr-FR', timezoneId: 'Europe/Paris' });
+  page.setDefaultNavigationTimeout(60000); page.setDefaultTimeout(45000);
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', m => { if (m.type() === 'error' && m.text().includes('Content Security Policy')) errors.push(m.text()); });
+  await page.goto(fs.readFileSync(path.join(dir, 'admin-invitation.txt'), 'utf8').trim());
+  await page.getByLabel('Votre prénom').fill('Camille');
+  await page.getByLabel('Identifiant du portail').fill('school-check');
+  await page.getByLabel('Mot de passe du portail').fill('temporary-test-password');
+  await page.getByRole('button', { name: 'Créer mon espace' }).click();
+  await page.getByRole('heading', { name: /^Bonjour /, exact: true, level: 1 }).waitFor();
+  const user = store.state.users[0];
+  store.update(user.id, { skolengo: store.seal({ fixture: true }), studentId: 'test-student', schoolName: 'Établissement de contrôle', students: [{ id: 'test-student', name: 'Camille' }] });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await openArea(page,'Mon abonnement ICS');
+  await page.getByRole('button', { name: 'Créer mon lien ICS' }).click();
+  await page.locator('#feed-url').waitFor();
+  await openArea(page,'Mon espace');
+  await openTool(page,'Devoirs & contrôles');await page.locator('#panel-work').getByText('Exercices de géométrie', { exact: true }).waitFor();
+  assert.equal(await page.locator('#email-form button[type=submit]').isDisabled(), true);
+  await openTool(page,'Matières');
+  const math = page.locator('.subject-form').filter({ hasText: 'Mathématiques' });
+  await math.locator('select[name=emoji]').selectOption('🎨');
+  await math.locator('select[name=color]').selectOption('crimson');
+  await math.getByRole('button', { name: 'Appliquer', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.subject-form.theme-crimson select[name=emoji]')?.value === '🎨');
+  await openArea(page,'Mon abonnement ICS');
+  await page.locator('.simple-feed-options summary').click();await page.getByLabel('Rappel avant les cours').selectOption('10');
+  await page.locator('#reminder-form').getByRole('button', { name: 'Appliquer' }).click();
+  await page.waitForFunction(() => document.querySelector('#reminder')?.value === '10');
+  await openArea(page,'Mon espace');
+  await openTool(page,'Devoirs & contrôles');
+  await page.getByText('＋ Ajouter un devoir ou un contrôle', { exact: true }).click();
+  await page.getByLabel('Matière', { exact: true }).fill('SVT');
+  await page.getByLabel('Titre', { exact: true }).fill('Contrôle personnel de biologie');
+  await page.getByLabel('Consignes ou choses à réviser').fill('Relire le chapitre 3.');
+  await page.getByRole('button', { name: 'Ajouter' }).click();
+  const manual = page.locator('#panel-work .work-item').filter({ hasText: 'Contrôle personnel de biologie' });
+  await manual.waitFor(); await manual.getByRole('button', { name: 'Marquer fait' }).click();
+  await page.waitForFunction(() => ![...document.querySelectorAll('#panel-work .work-item strong')].some(e => e.textContent === 'Contrôle personnel de biologie'));
+  room = 'C105';
+  await openArea(page,'Mon organisation');await page.getByRole('button', { name: 'Actualiser l’agenda',exact:true }).click();
+  await openTool(page,'Changements');
+  await page.locator('#hub-panel').getByText('Salle : B204 → C105', { exact: false }).waitFor();
+  await openArea(page,'Mon espace');await page.getByRole('button',{name:'Demain',exact:true}).click();
+  fs.mkdirSync('test-results', { recursive: true });
+  await page.screenshot({ path: 'test-results/features-desktop.png', fullPage: false, animations: 'disabled', timeout: 60000 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.screenshot({ path: 'test-results/features-mobile.png', fullPage: false, animations: 'disabled', timeout: 60000 });
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await openArea(page,'Comptes & notifications');
+  await page.getByText('Administration · Envoi des mails', { exact: true }).click();
+  await page.getByLabel('Serveur SMTP', { exact: true }).fill('smtp.example.invalid');
+  await page.getByLabel('Identifiant SMTP', { exact: true }).fill('sender');
+  await page.getByLabel('Mot de passe SMTP', { exact: true }).fill('fake-test-password');
+  await page.getByLabel('Adresse d’expédition', { exact: true }).fill('sender@example.invalid');
+  const configResponse = page.waitForResponse(r => r.url().endsWith('/api/admin/mail') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Vérifier et enregistrer l’envoi' }).click(); assert.equal((await configResponse).status(), 200);
+  await openArea(page,'Mon espace');
+  await openMailNotifications(page);
+  await page.getByLabel('Votre adresse mail', { exact: true }).fill('camille@example.invalid');
+  await page.getByRole('button', { name: 'Confirmer mon adresse', exact: true }).click();
+  await page.locator('#notifications-dialog').getByText('Adresse à confirmer', { exact: true }).waitFor();
+  assert.equal(sent.length, 1);
+  const verification = sent[0].text.match(/#verify-email=([A-Za-z0-9_-]+)/)[1];
+  await page.goto(baseURL + '/#verify-email=' + verification, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'M’envoyer un aperçu', exact: true }).waitFor();
+  const previewResponse = page.waitForResponse(r => r.url().endsWith('/api/email/test'));
+  await page.getByRole('button', { name: 'M’envoyer un aperçu', exact: true }).click(); assert.equal((await previewResponse).status(), 200);
+  assert.equal(sent.length, 2); assert.equal(sent[1].to, 'camille@example.invalid'); assert.ok(sent[1].text.includes('C105'));
+  const unsubscribe = sent[1].text.match(/#unsubscribe=([A-Za-z0-9_-]+)/)[1];
+  await page.goto(baseURL + '/#unsubscribe=' + unsubscribe, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Arrêter les envois', exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('#unsubscribe-dialog')?.open);
+  assert.equal(store.user(user.id).emailConfig.enabled, false);
+  assert.deepEqual(errors, []);
+  console.log(JSON.stringify({ ok: true, emojiAndColor: true, reminders: true, homework: true, manualAssessments: true, changes: true, emailVerification: true, emailPreview: true, unsubscribe: true, desktop: true, mobile: true, realEmailsSent: 0 }));
+} catch (error) {
+  fs.mkdirSync('test-results', { recursive: true });
+  await page?.screenshot({ path: 'test-results/features-failure.png', fullPage: false, animations: 'disabled', timeout: 60000 }).catch(() => {});
+  console.error(JSON.stringify({ pageErrors: errors, summaries: await page?.locator('summary').allTextContents().catch(() => []), toast: await page?.locator('#toast').textContent().catch(() => '') }));
+  throw error;
+} finally { await browsers.close(); await browser?.close(); await new Promise(r => server.close(r)); fs.rmSync(dir, { recursive: true, force: true }); }

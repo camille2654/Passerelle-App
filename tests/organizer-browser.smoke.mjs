@@ -1,0 +1,93 @@
+import {openArea,openTool,openMailNotifications,setTheme} from './simple-navigation.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+import { createApp } from '../src/server.js';
+import { random, digest, passwordHash } from '../src/store.js';
+import { parisDate, shiftDate } from '../src/work.js';
+import { subjectFor } from '../src/subjects.js';
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agenda-organizer-browser-')), baseURL = 'http://127.0.0.1:8021/agenda', today = parisDate(new Date()), tomorrow = shiftDate(today, 1), examDay = shiftDate(today, 5), sent = [], errors = [];
+let room = 'B204';
+const source = student => [{ date: tomorrow, lessons: [{ id: 'math-' + student, title: 'Mathématiques', subject: { label: 'Mathématiques' }, startDateTime: tomorrow + (student === 'alice' ? 'T08:00:00Z' : 'T09:00:00Z'), endDateTime: tomorrow + (student === 'alice' ? 'T09:00:00Z' : 'T10:00:00Z'), location: student === 'alice' ? room : 'SALLE CONFIDENTIELLE BOB', canceled: false, teachers: [] }], homeworkAssignments: [{ id: 'exam-' + student, title: 'Contrôle sur les fonctions', html: '<p>Revoir les suites et préparer les exercices.</p>', dueDateTime: examDay + 'T08:00:00Z', subject: { label: 'Mathématiques' }, done: false }] }];
+const { app, store, engine, browsers, mailer } = createApp({ dataDir: dir, baseURL, bootstrap: false,
+  syncOptions: { clientFactory: async () => ({ getAgenda: async (student, start, end) => source(student).filter(day => day.date >= start && day.date <= end) }) },
+  mailOptions: { transportFactory: () => ({ verify: async () => {}, close() {}, sendMail: async message => { sent.push(message); return { accepted: [message.to] }; } }) }
+});
+for (const id of ['alice', 'bob']) store.state.users.push({ id, name: id === 'alice' ? 'Alice' : 'Bob', login: id + '-check', admin: id === 'alice', password: passwordHash('temporary-browser-password'), studentId: id, skolengo: store.seal({ fixture: true }), enabled: true });
+const cookie = random(); store.state.sessions.push({ hash: digest(cookie), userId: 'alice', expires: Date.now() + 3600000 }); store.save();
+await engine.run('alice'); await engine.run('bob');
+await mailer.configure({ fromEmail: 'sender@gmail.com', password: 'fake-app-password' });
+await mailer.savePreferences(store.user('alice'), { address: 'alice@example.invalid', enabled: false, alertsEnabled: false, time: '20:00' });
+mailer.verifyAddress(sent[0].text.match(/#verify-email=([A-Za-z0-9_-]+)/)[1]);
+const server = app.listen(8021, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+let browser, page;
+try {
+  browser = await chromium.launch({ headless: true, args: ['--renderer-process-limit=1'] });
+  const alice = await browser.newContext({ viewport: { width: 1440, height: 1050 }, locale: 'fr-FR', timezoneId: 'Europe/Paris' });
+  await alice.addCookies([{ name: 'agenda_session', value: cookie, url: baseURL }]); page = await alice.newPage(); page.setDefaultTimeout(45000);
+  const watch = page => { page.on('pageerror', error => errors.push(error.message)); page.on('console', message => { if (message.type() === 'error' && message.text().includes('Content Security Policy')) errors.push(message.text()); }); }; watch(page);
+  await page.goto(baseURL + '/', { waitUntil: 'domcontentloaded' });
+  await openTool(page,'Semaine');
+  await page.locator('.week-course').first().waitFor(); assert.equal(await page.locator('.week-day').count(), 7);
+  await page.getByRole('button', { name: 'Semaine suivante', exact: true }).click();
+  await page.waitForFunction(() => ![...document.querySelectorAll('.week-course')].length);
+  await page.getByRole('button', { name: 'Semaine précédente', exact: true }).click(); await page.locator('.week-course').first().waitFor();
+  fs.mkdirSync('test-results', { recursive: true }); await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: 'test-results/organizer-week-desktop.png', animations: 'disabled', timeout: 60000 });
+  await openTool(page,'Mon sac');
+  await page.getByLabel('Liste à personnaliser', { exact: true }).selectOption(subjectFor({ label: 'Mathématiques' }).key);
+  await page.getByLabel('Matériel · un objet par ligne', { exact: true }).fill('Calculatrice\nCahier de mathématiques');
+  await page.getByRole('button', { name: 'Enregistrer ma liste', exact: true }).click();
+  const calculator = page.locator('.bag-item').filter({ hasText: 'Calculatrice' }).getByRole('checkbox'); await calculator.waitFor(); await calculator.check();
+  await page.waitForFunction(() => [...document.querySelectorAll('.bag-item')].some(item => item.textContent.includes('Calculatrice') && item.classList.contains('is-done')));
+  await page.reload({ waitUntil: 'domcontentloaded' }); await openArea(page,'Mon organisation'); await openTool(page,'Mon sac');
+  await calculator.waitFor(); assert.equal(await calculator.isChecked(), true);
+  await openTool(page,'Révisions');
+  await page.getByLabel('Temps total à prévoir · minutes', { exact: true }).fill('90'); await page.getByLabel('Durée d’une séance', { exact: true }).selectOption('25');
+  await page.getByRole('button', { name: 'Planifier mes révisions', exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.study-list>li').length === 4);
+  await page.getByRole('button', { name: '✓ Séance terminée', exact: true }).first().click();
+  await page.locator('.study-completed summary').filter({ hasText: '1 séance terminée' }).waitFor();
+  assert.equal(store.user('alice').studySessions.filter(session => session.done).length, 1);
+  await setTheme(page,'dark'); await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await openTool(page,'Application'); await page.locator('#app-theme').waitFor();
+  await page.screenshot({ path: 'test-results/organizer-dark-desktop.png', animations: 'disabled', timeout: 60000 });
+  await page.reload({ waitUntil: 'domcontentloaded' }); await page.getByRole('button', { name: 'Agenda', exact: true }).waitFor(); assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+  await setTheme(page,'system'); await page.emulateMedia({ colorScheme: 'light' }); await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await page.emulateMedia({ colorScheme: 'dark' }); await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark'); await setTheme(page,'light');
+  await openArea(page,'Mon espace'); await openMailNotifications(page); await page.getByLabel('Me prévenir par mail des changements de cours détectés.', { exact: true }).check();
+  const preferences = page.waitForResponse(response => response.url().endsWith('/api/email/preferences'));
+  await page.locator('#email-form').getByRole('button', { name: 'Enregistrer', exact: true }).click(); assert.equal((await preferences).status(), 200); assert.equal(store.user('alice').emailConfig.alertsEnabled, true);
+  await page.getByRole('button', { name: 'Fermer les notifications', exact: true }).click(); await page.waitForFunction(() => !document.querySelector('#notifications-dialog').open);
+  room = 'C105'; await engine.run('alice'); await mailer.tick(); assert.equal(sent.length, 2); assert.ok(sent[1].text.includes('B204 → C105')); await mailer.tick(); assert.equal(sent.length, 2);
+  await openArea(page,'Mon organisation'); await openTool(page,'Entre amis');
+  await page.locator('#friend-invite-form input[type=checkbox]').check(); await page.getByRole('button', { name: 'Créer un lien de partage', exact: true }).click();
+  await page.locator('#friend-url').waitFor(); const invitation = await page.locator('#friend-url').inputValue(); assert.ok(invitation.includes('#friend='));
+  const bob = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'fr-FR', timezoneId: 'Europe/Paris' }), friendPage = await bob.newPage(); watch(friendPage); friendPage.setDefaultTimeout(45000);
+  await friendPage.goto(invitation, { waitUntil: 'domcontentloaded' }); await friendPage.getByLabel('Identifiant du portail', { exact: true }).fill('bob-check'); await friendPage.getByLabel('Mot de passe du portail', { exact: true }).fill('temporary-browser-password');
+  await friendPage.getByRole('button', { name: 'Se connecter', exact: true }).click(); await friendPage.getByRole('heading', { name: 'Alice vous propose un partage', exact: true }).waitFor();
+  await friendPage.getByRole('button', { name: 'Accepter le partage réciproque', exact: true }).click(); await friendPage.locator('.friend-list').getByText('Alice', { exact: true }).waitFor();
+  assert.equal(await friendPage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await openTool(page,'Entre amis'); await page.locator('.friend-list').getByText('Bob', { exact: true }).waitFor();
+  await page.locator('#availability-form').getByLabel('Bob', { exact: true }).check(); await page.getByLabel('Semaine contenant le', { exact: true }).fill(tomorrow);
+  const available = page.waitForResponse(response => response.url().includes('/api/friends/availability?'));
+  await page.getByRole('button', { name: 'Chercher un créneau commun', exact: true }).click(); const availableResponse = await available; assert.equal(availableResponse.status(), 200); const availableJSON = JSON.stringify(await availableResponse.json()); assert.ok(!availableJSON.includes('SALLE CONFIDENTIELLE BOB')); assert.ok(!availableJSON.includes('Mathématiques'));
+  await page.locator('.availability-results').waitFor(); await page.setViewportSize({ width: 390, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({ path: 'test-results/organizer-friends-mobile.png', animations: 'disabled', timeout: 60000 });
+  await friendPage.getByRole('button', { name: 'Arrêter le partage', exact: true }).click(); await friendPage.getByText('Aucun partage pour le moment.', { exact: false }).waitFor();
+  await openTool(page,'Entre amis'); await page.getByText('Aucun partage pour le moment.', { exact: false }).waitFor(); assert.equal(await page.locator('.availability-results').count(), 0); await bob.close();
+  await openTool(page,'Semaine'); await page.locator('.week-course').first().waitFor();
+  for (const width of [360, 390, 820, 1440]) { await page.setViewportSize({ width, height: width < 600 ? 844 : 1050 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'overflow ' + width); }
+  await page.setViewportSize({ width: 390, height: 844 }); await setTheme(page,'dark'); await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({ path: 'test-results/organizer-week-mobile-dark.png', animations: 'disabled', timeout: 60000 });
+  const manifest = await (await page.request.get(baseURL + '/manifest.webmanifest')).json(); assert.equal(manifest.display, 'standalone'); for (const icon of manifest.icons) assert.equal((await page.request.get(baseURL + '/' + icon.src.replace('./', ''))).status(), 200);
+  await page.evaluate(() => navigator.serviceWorker.ready); await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  const cachedURLs = await page.evaluate(async () => (await Promise.all((await caches.keys()).map(async name => (await (await caches.open(name)).keys()).map(request => request.url)))).flat());
+  assert.ok(cachedURLs.length > 0); assert.ok(cachedURLs.every(url => !url.includes('/api/') && !url.includes('/calendars/')));
+  await alice.setOffline(true); await page.reload({ waitUntil: 'domcontentloaded' }); await page.getByRole('heading', { name: 'Vous êtes hors connexion.', exact: true }).waitFor(); assert.ok(!(await page.locator('body').textContent()).includes('Alice')); await alice.setOffline(false);
+  assert.deepEqual(errors, []);
+  console.log(JSON.stringify({ ok: true, weeklyNavigation: true, bagPersistence: true, revisionPlanning: true, changeAlertsOptIn: true, emailDeduplication: true, reciprocalSharing: true, sharingRevocation: true, noCourseDisclosure: true, darkAndAutomaticThemes: true, pwaManifest: true, offlinePrivacy: true, mobile: true, desktop: true, realEmailsSent: 0 }));
+} catch (failure) { await page?.screenshot({ path: 'test-results/organizer-failure.png', animations: 'disabled', timeout: 60000 }).catch(() => {}); console.error(JSON.stringify({ pageErrors: errors, toast: await page?.locator('#toast').textContent().catch(() => ''), alert: await page?.locator('#organizer-panel [role=alert]').allTextContents().catch(() => []) })); throw failure; }
+finally { await browser?.close(); await browsers.close(); await new Promise(resolve => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }); }

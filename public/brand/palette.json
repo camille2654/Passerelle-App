@@ -1,0 +1,13 @@
+{
+  "name": "Passerelle · Carnet contemporain",
+  "version": "1.0",
+  "signature": "Ta journée prend forme.",
+  "font": { "family": "Manrope", "weights": [400, 650, 800], "license": "SIL Open Font License 1.1" },
+  "colors": {
+    "forest": "#153D38", "lime": "#D9EF78", "paper": "#F6F5EF", "coral": "#F2A38C", "blue": "#C8D7F0",
+    "text": "#213B35", "muted": "#63716A", "border": "#DFE4D8", "action": "#205C50",
+    "darkBackground": "#101F1C", "darkSurface": "#1B2E27", "darkText": "#E5EDDF"
+  },
+  "radii": { "button": 11, "card": 18, "hero": 22 },
+  "spacing": [4, 8, 12, 16, 24, 32, 48, 64]
+}

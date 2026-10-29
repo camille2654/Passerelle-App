@@ -1,0 +1,15 @@
+node_modules/
+data/
+.env
+test-results/
+*.log
+.env
+.env.*
+!.env.example
+node_modules/
+data/
+test-results/
+coverage/
+*.log
+*.pem
+*.key

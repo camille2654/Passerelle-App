@@ -1,0 +1,12 @@
+[Unit]
+Description=Passerelle private photo OCR socket
+
+[Socket]
+ListenStream=/run/passerelle-ocr.sock
+SocketUser=ubuntu
+SocketGroup=ubuntu
+SocketMode=0600
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

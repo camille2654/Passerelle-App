@@ -1,0 +1,11 @@
+T’as quoi pour demain ?
+
+Tes cours, tes devoirs et le petit rappel qui tombe bien.
+Passerelle t’aide à préparer ta prochaine journée, dans une vue simple.
+
+Prépare demain. Profite de ce soir.
+
+Découvrir Passerelle :
+https://repere.84.235.226.127.sslip.io/agenda/
+
+Interface réelle, données fictives. Les informations disponibles dépendent de ton établissement.

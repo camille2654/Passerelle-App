@@ -1,0 +1,31 @@
+[Unit]
+Description=Passerelle isolated photo OCR worker
+Requires=passerelle-ocr.socket
+After=passerelle-ocr.socket
+
+[Service]
+Type=simple
+DynamicUser=yes
+ExecStart=/usr/bin/python3 /usr/local/lib/passerelle/ocr-worker.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+MemoryMax=200M
+MemorySwapMax=0
+CPUQuota=75%
+TasksMax=12
+TimeoutStopSec=5

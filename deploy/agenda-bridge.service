@@ -1,0 +1,29 @@
+[Unit]
+Description=Passerelle Skolengo - cours, devoirs et briefs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/apps/agenda-bridge
+Environment=NODE_ENV=production
+Environment=AGENDA_PORT=8020
+Environment=AGENDA_BASE_URL=https://repere.84.235.226.127.sslip.io/agenda
+Environment=AGENDA_DATA_DIR=/home/ubuntu/apps/agenda-bridge/data
+ExecStart=/usr/bin/node /home/ubuntu/apps/agenda-bridge/src/server.js
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/apps/agenda-bridge/data
+PrivateTmp=true
+MemoryMax=450M
+TasksMax=180
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

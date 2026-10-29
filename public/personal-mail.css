@@ -1,0 +1,46 @@
+dialog#personal-mail-dialog{width:min(760px,calc(100vw - 32px));max-width:none;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);margin:auto;padding:28px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:Manrope,system-ui,sans-serif;overflow-y:auto;overscroll-behavior:contain;overflow-wrap:anywhere}
+.personal-mail-dialog::backdrop{background:#17251d66}
+.personal-mail-dialog[open]{animation:personal-mail-enter 160ms ease-out both}
+.personal-mail-dialog .drawer-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:0 0 24px;padding:0;border:0}
+.personal-mail-dialog .drawer-heading h2{font-size:23px;font-weight:600;line-height:1.35;letter-spacing:-.6px;margin:5px 0 0}
+.personal-mail-dialog .drawer-heading .eyebrow{font-size:10px;color:var(--muted);letter-spacing:1.5px;margin:0}
+.personal-mail-dialog .icon-button{min-width:44px;min-height:44px;background:var(--surface);flex-shrink:0}
+.personal-mail-dialog button,.personal-mail-dialog input,.personal-mail-dialog textarea{font-family:inherit}
+.personal-mail-dialog :is(button,a,summary){min-height:44px}
+.personal-mail-dialog :is(button,input,textarea,a):focus-visible{outline:2px solid var(--primary,#315e50);outline-offset:3px}
+.personal-mail-intro{font-size:14px;line-height:1.75;color:var(--muted);margin:0 0 24px}
+.personal-mail-help{font-size:12px;line-height:1.75;color:var(--muted);margin:12px 0}
+.personal-mail-help a{color:var(--primary,#315e50);text-underline-offset:3px}
+.personal-mail-help a .icon{width:12px;height:12px;vertical-align:middle}
+.mail-provider{padding:24px 0;border-top:1px solid var(--line)}
+.mail-provider-heading{display:flex;align-items:center;gap:13px;margin-bottom:18px}
+.mail-provider-heading>div{min-width:0;flex:1}
+.mail-provider-heading h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.3px;line-height:1.4}
+.mail-provider-heading p{font-size:12px;color:var(--muted);margin:5px 0 0;line-height:1.6}
+.mail-provider-heading .badge{flex-shrink:0;font-size:10px}
+.mail-provider-mark{display:grid;place-items:center;width:39px;height:39px;flex-shrink:0;background:var(--sage,var(--surface));color:var(--primary,#315e50);border:1px solid var(--line);border-radius:6px}
+.mail-provider-mark .icon{width:19px;height:19px}
+.personal-mail-preferences,.personal-mail-admin-form{display:grid;gap:14px;margin:17px 0 0;min-width:0}
+.personal-mail-dialog :is(.personal-mail-preferences,.personal-mail-admin-form)>label:not(.check-label),.personal-mail-admin-provider>label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:650;line-height:1.6;min-width:0}
+.personal-mail-dialog :is(input:not([type=checkbox]),textarea){box-sizing:border-box;min-width:0;width:100%;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);font-size:14px;padding:11px 12px;line-height:1.6}
+.personal-mail-dialog textarea{resize:vertical;min-height:105px}
+.personal-mail-dialog .check-label{display:flex;align-items:flex-start;gap:10px;font-size:13px;font-weight:400;line-height:1.7;margin:0}
+.personal-mail-dialog .check-label input{flex-shrink:0;width:19px;height:19px;margin-top:2px;accent-color:var(--primary,#315e50)}
+.personal-mail-dialog form>.button{justify-self:start;max-width:100%;white-space:normal}
+.personal-mail-dialog form>.personal-mail-help{margin:0}
+.personal-mail-provider-actions,.personal-mail-bottom{display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.personal-mail-provider-actions .text-button,.personal-mail-bottom .text-button{font-size:12px}
+.personal-mail-bottom{padding-top:20px;border-top:1px solid var(--line)}
+.personal-mail-copy{display:flex;align-items:stretch;gap:8px;min-width:0}
+.personal-mail-copy input{flex:1;font-size:11px!important}
+.personal-mail-copy .button{flex-shrink:0;min-width:44px;padding:10px}
+.personal-mail-back{font-size:12px;margin-bottom:18px}
+.personal-mail-message{font-size:13px;line-height:1.75;color:var(--primary,#315e50);padding:12px 14px;border:1px solid var(--line);border-radius:5px;background:var(--sage,var(--surface));margin:0 0 20px}
+.personal-mail-dialog .notice{font-size:13px;line-height:1.7}
+.personal-mail-dialog button:disabled{cursor:not-allowed;opacity:.55}
+.event-personal-settings{padding-top:10px;margin-top:8px;border-top:1px solid var(--line)}
+.event-personal-settings .text-button{font-size:12px}
+@keyframes personal-mail-enter{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:480px){dialog#personal-mail-dialog{width:calc(100vw - 24px);padding:20px;max-height:calc(100dvh - 24px)}.personal-mail-dialog .drawer-heading h2{font-size:21px}.mail-provider-heading{gap:10px;flex-wrap:wrap}.mail-provider-heading .badge{margin-left:49px}.personal-mail-dialog form>.button,.personal-mail-bottom>.button{width:100%;justify-content:center;text-align:center}.personal-mail-provider-actions{align-items:flex-start;flex-direction:column;gap:4px}.personal-mail-intro{font-size:13px}.personal-mail-copy input{font-size:10px!important}.personal-mail-dialog .check-label{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.personal-mail-dialog[open]{animation:none}}
+@media(forced-colors:active){.personal-mail-message,.mail-provider-mark{border-color:CanvasText}.personal-mail-dialog :is(button,input,textarea,a):focus-visible{outline-color:Highlight}}

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/node /home/ubuntu/apps/agenda-bridge/scripts/admin-cli.mjs "$@"

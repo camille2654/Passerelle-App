@@ -1,0 +1,534 @@
+/* A short introduction, followed by guidance inside the real application. */
+.onboarding-dialog,
+.onboarding-coach,
+.onboarding-resume {
+  --onboarding-accent: var(--primary, #315e50);
+  --onboarding-error: #8b3c2c;
+  --onboarding-error-surface: #fff4ee;
+  --onboarding-error-line: #ebd6ca;
+  color: var(--ink);
+  font-family: Manrope, system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.onboarding-dialog[hidden],
+.onboarding-coach[hidden],
+.onboarding-resume[hidden],
+:is(.onboarding-dialog, .onboarding-coach, .onboarding-resume) [hidden] {
+  display: none !important;
+}
+
+dialog#onboarding-dialog.onboarding-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 12px 40px #17291d1a;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.onboarding-dialog::backdrop {
+  background: #17251d66;
+  backdrop-filter: none;
+}
+
+.onboarding-dialog[open] {
+  animation: onboarding-arrive 180ms ease-out both;
+}
+
+.onboarding-welcome-mark {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.onboarding-welcome-mark img {
+  display: block;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.onboarding-dialog .onboarding-eyebrow {
+  margin: 0 0 8px;
+  color: var(--onboarding-accent);
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.6;
+  letter-spacing: .08em;
+}
+
+.onboarding-dialog #onboarding-title {
+  margin: 0 0 12px;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -.8px;
+}
+
+.onboarding-dialog p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.onboarding-intro-list {
+  display: grid;
+  gap: 0;
+  margin: 24px 0;
+  padding: 0;
+  list-style: none;
+  border-block: 1px solid var(--line);
+}
+
+.onboarding-intro-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  min-width: 0;
+  padding: 16px 0;
+}
+
+.onboarding-intro-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.onboarding-intro-list li > svg {
+  flex: 0 0 19px;
+  width: 19px;
+  height: 19px;
+  margin-top: 3px;
+  color: var(--onboarding-accent);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.onboarding-intro-list li > span {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-intro-list strong {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.onboarding-intro-list small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.onboarding-welcome-actions,
+.onboarding-coach-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+:is(.onboarding-welcome-actions, .onboarding-coach-actions) > button {
+  min-width: 44px;
+  max-width: 100%;
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:is(.onboarding-welcome-actions, .onboarding-coach-actions) > .button {
+  padding: 11px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+:is(.onboarding-welcome-actions, .onboarding-coach-actions) > .text-button {
+  padding: 10px 2px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: start;
+}
+
+:is(.onboarding-welcome-actions, .onboarding-coach-actions) > .text-button:hover {
+  color: var(--ink);
+}
+
+section#onboarding-coach.onboarding-coach {
+  position: sticky;
+  top: 80px;
+  z-index: 15;
+  width: 100%;
+  max-width: 760px;
+  scroll-margin-top: 86px;
+  margin: 0 0 24px;
+  padding: 21px 24px 20px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 4px 15px #17291d08;
+  animation: onboarding-arrive 180ms ease-out both;
+}
+
+.onboarding-coach-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin: -8px -10px 2px 0;
+}
+
+.onboarding-step {
+  min-width: 0;
+  color: var(--onboarding-accent);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  line-height: 1.7;
+}
+
+.onboarding-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1;
+}
+
+.onboarding-close:hover {
+  background: var(--soft);
+  color: var(--ink);
+}
+
+.onboarding-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.onboarding-coach #onboarding-coach-title {
+  margin: 0 0 7px;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -.45px;
+}
+
+.onboarding-coach .onboarding-copy {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.onboarding-dots {
+  display: flex;
+  gap: 5px;
+  width: min(152px, 100%);
+  margin: 16px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-dots li {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+  white-space: nowrap;
+  text-indent: -9999px;
+}
+
+.onboarding-dots li[data-state="done"] {
+  background: var(--onboarding-accent);
+}
+
+.onboarding-dots li[data-state="current"] {
+  background: var(--onboarding-accent);
+  outline: 1px solid var(--onboarding-accent);
+  outline-offset: 2px;
+}
+
+.onboarding-task {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border-left: 2px solid var(--onboarding-accent);
+  border-radius: 0 4px 4px 0;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.onboarding-task p {
+  margin: 0;
+}
+
+.onboarding-task strong {
+  font-weight: 600;
+}
+
+.onboarding-feedback {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--onboarding-error-line);
+  border-radius: 5px;
+  background: var(--onboarding-error-surface);
+  color: var(--onboarding-error);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.onboarding-feedback[role="status"] {
+  border-color: var(--line);
+  background: var(--soft);
+  color: var(--ink);
+}
+
+.onboarding-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 44px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 10px 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: start;
+}
+
+.onboarding-back:hover {
+  color: var(--ink);
+}
+
+.onboarding-back svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+aside.onboarding-resume {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+  margin: 0 0 24px;
+  padding: 11px 0;
+  border-block: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.simple-home > .onboarding-resume {
+  grid-column: 1 / -1;
+}
+
+.onboarding-resume > svg {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--onboarding-accent);
+}
+
+.onboarding-resume > :is(span, p, div) {
+  flex: 1 1 160px;
+  min-width: 0;
+  margin: 0;
+}
+
+.onboarding-resume strong {
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.onboarding-resume > button {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 2px;
+  color: var(--onboarding-accent);
+  white-space: normal;
+  text-align: start;
+}
+
+.onboarding-target {
+  outline: 2px solid var(--primary, #315e50);
+  outline-offset: 3px;
+  scroll-margin-block: 110px;
+  animation: onboarding-target-arrive 650ms ease-out 1;
+}
+
+.onboarding-target:focus-visible {
+  outline-width: 3px;
+  outline-offset: 4px;
+}
+
+/* The bottom navigation clips its children on narrow screens. */
+.sidebar .nav-link.onboarding-target {
+  outline-offset: -3px;
+  animation: none;
+}
+
+:is(.onboarding-dialog, .onboarding-coach, .onboarding-resume) :focus-visible {
+  outline: 2px solid var(--onboarding-accent);
+  outline-offset: 3px;
+}
+
+html[data-theme="dark"] :is(.onboarding-dialog, .onboarding-coach, .onboarding-resume) {
+  --onboarding-error: #f1c3ad;
+  --onboarding-error-surface: #382a23;
+  --onboarding-error-line: #604638;
+}
+
+html[data-theme="dark"] .onboarding-dialog::backdrop {
+  background: #050d0877;
+}
+
+html[data-theme="dark"] :is(.onboarding-close, .onboarding-back) {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] :is(.onboarding-close, .onboarding-back):hover {
+  color: var(--ink);
+}
+
+@keyframes onboarding-arrive {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes onboarding-target-arrive {
+  from { outline-offset: 6px; }
+  to { outline-offset: 3px; }
+}
+
+@media (max-width: 780px) {
+  section#onboarding-coach.onboarding-coach {
+    position: static;
+    top: auto;
+    padding: 17px 18px 16px;
+    margin-bottom: 22px;
+    box-shadow: none;
+  }
+
+  .onboarding-coach #onboarding-coach-title {
+    font-size: 19px;
+  }
+
+  .onboarding-coach-actions {
+    gap: 6px 12px;
+  }
+
+  .onboarding-target {
+    outline-offset: 2px;
+    scroll-margin-block: 92px 110px;
+  }
+}
+
+@media (max-width: 480px) {
+  dialog#onboarding-dialog.onboarding-dialog {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 24px 22px;
+  }
+
+  .onboarding-welcome-mark {
+    margin-bottom: 21px;
+  }
+
+  .onboarding-dialog #onboarding-title {
+    font-size: 25px;
+    letter-spacing: -.6px;
+  }
+
+  .onboarding-intro-list {
+    margin-block: 21px;
+  }
+
+  .onboarding-welcome-actions {
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .onboarding-welcome-actions > button {
+    flex: 1 1 100%;
+  }
+
+  .onboarding-welcome-actions > .text-button {
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-dialog,
+  .onboarding-dialog::backdrop,
+  .onboarding-coach,
+  .onboarding-target {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  .onboarding-target,
+  .onboarding-target:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .onboarding-dots li {
+    border: 1px solid GrayText;
+  }
+
+  .onboarding-dots li:is([data-state="done"], [data-state="current"]) {
+    background: Highlight;
+    outline: 1px solid Highlight;
+  }
+
+  .onboarding-feedback,
+  .onboarding-task {
+    border-color: CanvasText;
+  }
+}

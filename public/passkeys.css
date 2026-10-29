@@ -1,0 +1,24 @@
+dialog.passkeys-dialog{width:min(620px,calc(100vw - 24px));max-width:none;max-height:calc(100dvh - 24px);margin:auto;padding:26px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-family:Manrope,system-ui,sans-serif;overflow:auto;overflow-wrap:anywhere}
+.passkeys-dialog::backdrop{background:#17251d66}
+.passkeys-dialog .drawer-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:22px;padding:0;border:0}
+.passkeys-dialog .drawer-heading .eyebrow{margin:0;font-size:10px;color:var(--muted);letter-spacing:1.2px}
+.passkeys-dialog h2{font-size:23px;line-height:1.35;letter-spacing:-.5px;margin:5px 0 0}
+.passkeys-dialog h3{font-size:16px;line-height:1.5;margin:0}
+.passkeys-intro{font-size:14px;line-height:1.7;color:var(--muted);margin:0 0 22px}
+.passkeys-dialog :is(button,input){font-family:inherit;min-height:44px}
+.passkeys-dialog :is(button,input):focus-visible{outline:2px solid var(--primary,#315e50);outline-offset:3px}
+.passkeys-list{border-top:1px solid var(--line)}
+.passkey-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:18px 0;border-bottom:1px solid var(--line)}
+.passkey-row>div{flex:1;min-width:0}
+.passkey-row p{font-size:11px;line-height:1.6;color:var(--muted);margin:5px 0 0}
+.passkeys-empty,.passkeys-help{font-size:12px;color:var(--muted);line-height:1.7}
+#passkey-register-form{display:grid;gap:14px;margin:24px 0}
+.passkeys-dialog label{display:grid;gap:7px;font-size:12px;font-weight:700;min-width:0}
+.passkeys-dialog input{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:5px;background:var(--surface);color:var(--ink);padding:11px 12px;font-size:14px}
+.passkeys-dialog form>.button{justify-self:start;white-space:normal;line-height:1.5;max-width:100%}
+.passkeys-dialog [hidden]{display:none!important}
+.passkey-remove-form{flex-basis:100%;display:grid;gap:12px;border:1px solid var(--line);border-radius:5px;padding:14px}
+.passkey-remove-form>div{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.passkeys-dialog .icon-button{flex-shrink:0;min-width:44px}
+@media(max-width:480px){dialog.passkeys-dialog{padding:20px}.passkeys-dialog h2{font-size:21px}.passkeys-dialog form>.button{width:100%}}
+@media(forced-colors:active){.passkeys-dialog :is(button,input):focus-visible{outline-color:Highlight}}
