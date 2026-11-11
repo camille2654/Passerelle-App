@@ -91,6 +91,7 @@ Le dossier `data/` contient les comptes, les connexions ENT, les calendriers et 
 | Trajets et transports | [Fonctionnement et limites](docs/SMART_TRAVEL.md) |
 | Connecter Lapsus | [Guide d’intégration](docs/LAPSUS_INTEGRATION.md) · [Connecteur ENT géré](docs/MANAGED_ENT.md) |
 | État des services | [Page statut](public/status/index.html) · [Guide technique](docs/SYSTEM_STATUS.md) |
+| Informations légales | [Mentions, confidentialité, CGU et cookies](public/legal/) · [Checklist éditeur](docs/LEGAL.md) |
 | Identité et ressources graphiques | [Guide de style](docs/APP_STYLE.md) · [Studio social](public/brand/campaign/index.html) · [Bibliothèque d’icônes](public/brand/icons-v2/preview.html) |
 | Annoncer une nouveauté | [Guide des versions majeures](docs/MAJOR_RELEASES.md) |
 

@@ -27,3 +27,5 @@ input:not([type=radio]){display:block;width:100%;min-height:46px;border:1px soli
 .managed-ent-icon{display:block;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}.managed-ent-steps .managed-ent-icon{width:14px;height:14px}.managed-ent-check .managed-ent-icon{width:24px;height:24px}#managed-schools button{display:flex;align-items:center;gap:12px}#managed-schools button>.managed-ent-icon{color:var(--connect-accent)}
 
 .managed-data-types{display:flex;flex-wrap:wrap;gap:8px 13px;list-style:none;margin:18px 0 22px;padding:0;color:var(--connect-muted);font-size:11px;line-height:1.5}.managed-data-types>li{display:flex;align-items:center;gap:5px}.managed-data-types .managed-ent-icon{width:15px;height:15px;flex:none;color:var(--connect-accent)}
+
+.managed-ent-legal{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;padding:18px 22px 26px;font-size:11px;color:#687772}.managed-ent-legal a{color:inherit;text-underline-offset:3px}

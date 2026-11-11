@@ -36,3 +36,5 @@ html[data-theme=dark] .agenda-day-list .agenda-entry.is-current{background:var(-
 @media(prefers-reduced-motion:reduce){.settings-group>summary>.icon:last-child{transition:none}}
 
 #page-planner>.simple-setup{margin-bottom:24px}
+
+.auth-legal-note{max-width:420px;margin:13px auto 0;color:var(--muted);font-size:10px;line-height:1.7;text-align:center}.auth-legal-note a{color:var(--primary);text-underline-offset:2px}
