@@ -4,6 +4,8 @@ const app = $('#app');
 const entCloseFeedback=(()=>{let button=$('#ent-close-feedback');if(!button){button=document.createElement('button');button.id='ent-close-feedback';button.type='button';button.className='button secondary full';button.textContent='Revenir à Passerelle';button.hidden=true;$('#ent-dialog').append(button);}return button;})();
 // Resolve API routes from the deployed script, independently of the page URL.
 const base = new URL('.', document.currentScript?.src || location.href).pathname;
+const legalFooter=document.querySelector('body > footer');
+if(legalFooter&&!legalFooter.querySelector('a[href="./legal/"],a[href$="/legal/"],[data-legal-footer-link]')){const link=document.createElement('a');link.href=base+'legal/';link.className='brand-guide-link';link.dataset.legalFooterLink='';link.textContent='Informations légales, confidentialité et conditions';legalFooter.append(link);}
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // Recover URLs produced by the previously unhandled native connection form.
