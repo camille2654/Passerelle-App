@@ -12,7 +12,13 @@ La vue journée donne la priorité au contenu des cours : cartes ajustées à le
 
 ## Interactions de la version 4.20
 
-Les cours strictement identiques et adjacents (matière, intitulé, salle et style) partagent un bloc visuel, marqué du nombre de séances. Les objets ENT et les UID ICS restent séparés. Les annulations et les cours ayant changé depuis la dernière visite ne sont pas regroupés. Le repère de consultation existant du compte alimente les indications de salle et d’horaire modifiés.
+Les cours strictement identiques et adjacents (matière, intitulé, salle et style) partagent un bloc visuel, marqué du nombre de séances. Les objets ENT restent séparés. Les annulations et les cours ayant changé depuis la dernière visite ne sont pas regroupés. Le repère de consultation existant du compte alimente les indications de salle et d’horaire modifiés.
+
+## Cours regroupés dans les calendriers abonnés · 4.26.5
+
+Les liens ICS regroupent eux aussi les cours successifs strictement identiques : même intitulé, salle et matière, même journée, sans intervalle entre leurs horaires. Le calendrier externe reçoit un seul événement dont l’heure de fin couvre les séances réunies. Les descriptions distinctes des séances sont conservées dans cet événement. Un identifiant stable est calculé à partir des séances réunies ; si leur composition change, les calendriers abonnés peuvent remplacer l’ancien événement lors de leur prochaine actualisation. La fusion ICS suit les données actuelles du cours et ne dépend pas du fait que l’utilisateur ait déjà vu son changement dans Passerelle.
+
+Les cours annulés, les séances d’une autre matière ou salle et les cours séparés par un intervalle ne sont pas regroupés. Les enregistrements sources et l’affichage Passerelle gardent chaque séance individuelle. Les abonnements déjà créés sont reconstruits au démarrage du serveur sans changer leur lien ni lancer de synchronisation ENT.
 
 Le cours actuel dispose d’un repère et d’une progression fondés sur ses horaires réels. Le prochain cours est indiqué dans la vue d’aujourd’hui ; les cours annulés sont exclus. Ce repère s’actualise toutes les trente secondes lorsque l’agenda est visible et au retour dans l’application, sans requête ENT supplémentaire.
 

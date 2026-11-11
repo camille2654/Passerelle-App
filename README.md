@@ -9,7 +9,7 @@
     <a href="https://github.com/camille2654/Passerelle-App/issues">Signaler un problème</a>
   </p>
   <p>
-    <img src="https://img.shields.io/badge/version-4.26.4-153D38?style=flat-square" alt="Version 4.26.4">
+    <img src="https://img.shields.io/badge/version-4.26.5-153D38?style=flat-square" alt="Version 4.26.5">
     <img src="https://img.shields.io/badge/licence-GPL--3.0--or--later-526B55?style=flat-square" alt="Licence GPL-3.0-or-later">
     <img src="https://img.shields.io/badge/interface-mobile--first-D9EF78?style=flat-square" alt="Interface conçue pour mobile">
   </p>
@@ -20,6 +20,10 @@
 </p>
 
 Passerelle rassemble au même endroit l’emploi du temps, les devoirs et les outils pour préparer sa semaine. L’application est pensée pour être installée comme une **PWA** sur téléphone, tout en restant accessible depuis un navigateur.
+
+## Cours regroupés dans les calendriers abonnés · 4.26.5
+
+Les séances strictement identiques et consécutives sont maintenant publiées comme un seul événement dans le lien ICS : mêmes matière, intitulé et salle, avec des horaires qui se touchent. Les données scolaires restent séparées dans Passerelle. Les liens d’agenda existants sont conservés et leurs abonnements sont reconstruits au démarrage du serveur.
 
 ## L’essentiel, sans se perdre
 
