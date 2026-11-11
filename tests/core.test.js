@@ -124,8 +124,9 @@ test('incomplete, contradictory and out-of-range source data is rejected', async
 });
 test('portal authentication and ICS publication: cookies, isolation, caching, outages, rotation and revocation', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agenda-http-'));
-  let now = at, source = [{ date: '2026-10-27', lessons: [lesson] }], outage = false, reads = 0;
+  let now = at, source = [{ date: '2026-10-27', lessons: [lesson] }], outage = false, reads = 0, agendaCalls=0;
   const { app, store, browsers, engine } = createApp({ dataDir: dir, baseURL: 'http://127.0.0.1:8021/agenda', syncOptions: { clock: () => now, clientFactory: async (s, u) => ({ getAgenda: async (studentId, start, end) => {
+    agendaCalls++;
     if (start === dateWindow(new Date(now)).start) reads++;
     if (outage) throw new Error('HTTP 503');
     const days = studentId === 'student-admin' ? [{ date: '2026-10-27', lessons: [{ ...lesson, title: 'Cours privé admin' }] }] : source;
@@ -197,8 +198,8 @@ test('portal authentication and ICS publication: cookies, isolation, caching, ou
     assert.equal(await (await getFeed(feed)).text(), changedText); assert.equal(store.user(friendId).lastSync, lastSync);
     outage = false;
     store.update(adminUser.id, { enabled: false });
-    const before = reads; now += 599999; await engine.tick(); assert.equal(reads, before);
-    now += 1; await engine.tick(); assert.equal(reads, before + 1);
+    const before = reads,beforeCalls=agendaCalls; now += 299999; await engine.tick(); assert.equal(agendaCalls,beforeCalls);
+    now += 1; await engine.tick(); assert.equal(agendaCalls,beforeCalls+2);assert.equal(reads,before,'automatic refresh reads the recent seventeen days rather than the whole year');assert.equal(store.user(friendId).lastSyncMode,'near');
     const rotated = (await request('/api/feed/rotate', {})).body.user.feedURL;
     assert.notEqual(rotated, feed); assert.equal((await getFeed(feed)).status, 404); assert.equal((await getFeed(rotated)).status, 200);
     assert.equal(new Store(dir).open(store.user(friendId).feedKey), store.open(store.user(friendId).feedKey));

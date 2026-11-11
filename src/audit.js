@@ -3,6 +3,9 @@ import path from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
 
 export const AUDIT_LABELS = {
+  'pronote.login.step':'Étape de connexion PRONOTE',
+  'managed.configured':'Connexion ENT Lapsus configurée','managed.key.created':'Clé serveur Lapsus créée','managed.removed':'Connexion ENT Lapsus retirée',
+  'partner.connected':'Agenda partagé avec une application','partner.revoked':'Accès d’une application retiré','partner.configured':'Connexion partenaire configurée',
   'incoming.failed':'Partage interrompu','incoming.saved':'Contenu partagé conservé',
   'personal.mail.connected':'Messagerie personnelle reliée','personal.mail.disconnected':'Messagerie personnelle déconnectée','personal.mail.configured':'Applications des messageries configurées','personal.mail.failed':'Connexion à une messagerie interrompue',
   'events.scanned':'Événements du lycée vérifiés','events.failed':'Vérification des événements interrompue','events.accepted':'Événement confirmé dans l’agenda',

@@ -6,10 +6,11 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createApp } from '../src/server.js';
 import { passwordHash } from '../src/store.js';
+import {CURRENT_RELEASE} from '../src/releases.js';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'passerelle-public-browser-')), baseURL = 'http://127.0.0.1:8021/agenda', errors = [];
 const { app, store, browsers } = createApp({ dataDir: dir, baseURL, bootstrap: false });
-store.state.users.push({ id: 'public-owner-fixture', name: 'Camille', login: 'owner-fixture', admin: true, password: passwordHash('temporary-browser-password'), enabled: false }); store.save();
+store.state.users.push({ id: 'public-owner-fixture', seenRelease:CURRENT_RELEASE.id, name: 'Camille', login: 'owner-fixture', admin: true, password: passwordHash('temporary-browser-password'), enabled: false }); store.save();
 const server = app.listen(8021, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
 let browser, page;
 const shot = async name => { await page.evaluate(() => { window.scrollTo({ top: 0 }); return document.fonts.ready; }); await page.screenshot({ path: 'test-results/' + name + '.png', fullPage: true, animations: 'disabled', timeout: 60000 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, name); };
@@ -25,6 +26,8 @@ try {
   await page.getByLabel('Votre prénom', { exact: true }).fill('Alex'); await page.getByLabel('Identifiant du portail', { exact: true }).fill('alex-public'); await page.getByLabel('Mot de passe du portail', { exact: true }).fill('temporary-browser-password');
   await page.getByRole('button', { name: 'Afficher le mot de passe', exact: true }).click(); assert.equal(await page.locator('#password').getAttribute('type'), 'text'); await page.getByRole('button', { name: 'Masquer le mot de passe', exact: true }).click();
   await page.getByRole('button', { name: 'Créer mon espace', exact: false }).click(); await page.getByRole('heading', { name: /^Bonjour /, exact: true }).waitFor();
+  // Release announcements have their own dedicated browser scenario.
+  await page.evaluate(async()=>{await api('releases/seen',{releaseId:state.user.release.id});await refresh();});
   await page.locator('#onboarding-dialog[open]').waitFor(); await page.locator('#onboarding-dialog').getByRole('button',{name:'Plus tard',exact:true}).click(); await page.waitForFunction(()=>!document.querySelector('#onboarding-dialog').open);
   assert.equal(await page.evaluate(() => scrollY), 0, 'registration opens the workspace from the top');
   const member = store.state.users.find(user => user.login === 'alex-public'); assert.equal(member.admin, false); assert.equal(member.registrationSource, 'public');

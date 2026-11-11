@@ -1,0 +1,18 @@
+// Parse only data literals, never execute JavaScript from an upstream page.
+const fields=new Set(['h','a','e','f','CrA','CoA','sCrA','sCoA','http','d']);
+const entities=value=>value.replace(/&(?:quot|apos|amp|lt|gt|#\d+|#x[0-9a-f]+);/gi,token=>{const named={'&quot;':'"','&apos;':"'",'&amp;':'&','&lt;':'<','&gt;':'>'};if(named[token.toLowerCase()])return named[token.toLowerCase()];const n=parseInt(token.slice(token[2].toLowerCase()==='x'?3:2,-1),token[2].toLowerCase()==='x'?16:10);return Number.isFinite(n)&&n>0&&n<=0x10ffff?String.fromCodePoint(n):token;});
+function literal(source){
+ let i=0;const blank=()=>{while(/\s/.test(source[i]||'')&&i<source.length)i++;};
+ const string=()=>{const quote=source[i++];let out='';while(i<source.length){const c=source[i++];if(c===quote)return out;if(c==='\\'){const e=source[i++],escape={n:'\n',r:'\r',t:'\t',b:'\b',f:'\f',v:'\v','\\':'\\',"'":"'",'"':'"','/':'/'};if(e==='u'||e==='x'){const size=e==='u'?4:2,hex=source.slice(i,i+size);if(!new RegExp('^[0-9a-f]{'+size+'}$','i').test(hex))throw Error('escape');out+=String.fromCharCode(parseInt(hex,16));i+=size;}else if(Object.hasOwn(escape,e))out+=escape[e];else throw Error('escape');}else out+=c;if(out.length>20000)throw Error('length');}throw Error('string');};
+ const value=depth=>{if(depth>8)throw Error('depth');blank();if(source[i]==='"'||source[i]==="'")return string();if(source[i]==='{'){i++;const object=Object.create(null);let count=0;blank();while(source[i]!=='}'){blank();let key;if(source[i]==='"'||source[i]==="'")key=string();else{const found=source.slice(i).match(/^[a-zA-Z_$][\w$]*/);if(!found)throw Error('key');key=found[0];i+=key.length;}blank();if(source[i++]!==':')throw Error('colon');const item=value(depth+1);if(fields.has(key))object[key]=item;if(++count>100)throw Error('keys');blank();if(source[i]===','){i++;blank();if(source[i]==='}')break;}else if(source[i]!=='}')throw Error('comma');}i++;return object;}if(source[i]==='['){i++;let count=0;blank();while(source[i]!==']'){value(depth+1);if(++count>100)throw Error('array');blank();if(source[i]===',')i++;else if(source[i]!==']')throw Error('array');blank();}i++;return null;}const scalar=source.slice(i).match(/^(?:true|false|null|-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/i);if(!scalar)throw Error('value');i+=scalar[0].length;return JSON.parse(scalar[0].toLowerCase());};
+ const result=value(0);blank();if(i!==source.length)throw Error('trailing');return result;
+}
+export function parsePronoteBootstrap(html){
+ if(typeof html!=='string'||html.length>1048576)return null;
+ const body=html.match(/<body\b[^>]*\bonload\s*=\s*(?:"([^"]*)"|'([^']*)')/i);
+ const sources=body?[entities(body[1]??body[2]),html]:[html];
+ for(const text of sources){const pattern=/\bStart\s*\(\s*(?=\{)/g;let call;while((call=pattern.exec(text))){const start=pattern.lastIndex;let depth=0,quote='',escaped=false,end=-1;for(let i=start;i<text.length&&i-start<60000;i++){const c=text[i];if(quote){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c===quote)quote='';}else if(c==='"'||c==="'")quote=c;else if(c==='{')depth++;else if(c==='}'&&--depth===0){end=i+1;break;}}
+  if(end<0)continue;try{const parsed=literal(text.slice(start,end)),result=Object.create(null);for(const key of fields){const v=parsed[key];if(['string','number','boolean'].includes(typeof v)&&(typeof v!=='string'||v.length<=20000)&&(typeof v!=='number'||Number.isFinite(v)))result[key]=v;}if(result.h!==undefined&&result.a!==undefined)return result;}catch{/* Another Start call may carry the actual bootstrap. */}
+ }}return null;
+}
+export const hasENTCredentials=html=>{const b=parsePronoteBootstrap(html);return !!b&&typeof b.e==='string'&&b.e.length>0&&typeof b.f==='string'&&b.f.length>0;};

@@ -1,0 +1,75 @@
+diff --git a/functions/api/passerelle/[[path]].js b/functions/api/passerelle/[[path]].js
+--- a/functions/api/passerelle/[[path]].js
++++ b/functions/api/passerelle/[[path]].js
+@@ -42,22 +42,35 @@
+ const cookieHeader=(value,maxAge)=>`${COOKIE}=${value}; Path=/api/passerelle; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
+ const cookieValue=request=>(request.headers.get('cookie')||'').split(';').map(row=>row.trim().split('=')).find(([name])=>name===COOKIE)?.[1];
+ 
+-export function createHandler({fetcher=(...args)=>fetch(...args),now=()=>Date.now()}={}){
++export function createHandler({fetcher=(...args)=>fetch(...args),now=()=>Date.now(),logger=entry=>console.warn(JSON.stringify(entry))}={}){
+  return async function handle({request,env}){
+-  const url=new URL(request.url),path=url.pathname.slice('/api/passerelle'.length);let clearCookie=false;
++  const url=new URL(request.url),path=url.pathname.slice('/api/passerelle'.length);let clearCookie=false,phase='request';
+   try{
+    if(url.origin!==ORIGIN||!url.pathname.startsWith('/api/passerelle/'))fail('Adresse de service non autorisée.',403);
+    const origin=request.headers.get('origin');
+    if(origin&&origin!==ORIGIN||!['GET','POST','DELETE'].includes(request.method)||request.method!=='GET'&&origin!==ORIGIN)fail('Origine ou méthode de la demande refusée.',403);
++   phase='configuration';
+    const config=configuration(env),bearer=request.headers.get('authorization')||'';
+    if(!/^Bearer [A-Za-z0-9._-]{30,8192}$/.test(bearer))fail('Connectez-vous à votre compte Lapsus.',401);
++   const remote=async(target,url,options)=>{
++    phase=target==='auth'?'authentication':'passerelle';
++    let response;
++    // workerd accepts manual/follow only. Never forward credentials through a redirect.
++    try{response=await fetcher(url,{...options,redirect:'manual'});}
++    catch{fail(target==='auth'?'La vérification du compte Lapsus est temporairement indisponible.':'La liaison avec Passerelle est temporairement indisponible.',502,target==='auth'?'LAPSUS_AUTH_UNAVAILABLE':'PASSERELLE_UNAVAILABLE');}
++    if(response.status>=300&&response.status<400){
++     await response.body?.cancel().catch(()=>{});
++     fail(target==='auth'?'La connexion des comptes Lapsus doit être vérifiée par l’administrateur.':'La liaison avec Passerelle doit être vérifiée par l’administrateur.',502,target==='auth'?'LAPSUS_AUTH_REDIRECT':'PASSERELLE_REDIRECT');
++    }
++    return response;
++   };
+    // Ask Auth for the current user. Never trust a client-supplied subject or metadata.
+-   const check=await fetcher(config.auth+'/auth/v1/user',{headers:{apikey:config.publicKey,Authorization:bearer},redirect:'error',signal:AbortSignal.timeout(12000)});
++   const check=await remote('auth',config.auth+'/auth/v1/user',{headers:{apikey:config.publicKey,Authorization:bearer},signal:AbortSignal.timeout(12000)});
+    if(!check.ok){if(check.status>=500)fail('La connexion Lapsus est temporairement indisponible.',503);fail('Votre session Lapsus a expiré. Reconnectez-vous.',401);}
+    const user=await readJSON(check,128*1024);
+    if(!/^[a-fA-F0-9-]{36}$/.test(user.id||'')||user.is_anonymous===true||Date.parse(user.banned_until)>now())fail('Un compte Lapsus actif est nécessaire.',401);
+    const upstream=async(route,{method='GET',body,binary=false}={})=>{
+-    const response=await fetcher(ISSUER+'/api/managed-ent'+route,{method,headers:{Authorization:'Bearer '+config.key,'X-Lapsus-User':user.id,...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{}),redirect:'error',signal:AbortSignal.timeout(binary?35000:30000)});
++    const response=await remote('passerelle',ISSUER+'/api/managed-ent'+route,{method,headers:{Authorization:'Bearer '+config.key,'X-Lapsus-User':user.id,...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(binary?35000:30000)});
+     if(!response.ok){await response.body?.cancel().catch(()=>{});const messages={401:'La connexion entre Lapsus et Passerelle doit être reconfigurée.',403:'Ces données ne sont pas autorisées pour cette connexion.',404:'Cette connexion ENT n’existe plus. Reconnectez votre ENT.',409:'La connexion ENT a changé. Relancez-la depuis Lapsus.',410:/\/(detail|files)\//.test(route)?'Ce contenu a expiré. Actualise sa liste puis rouvre-le.':'La demande de connexion a expiré.',429:'Trop de demandes. Réessayez dans quelques minutes.',503:'La récupération ENT est temporairement indisponible.'};fail(messages[response.status]||'La récupération ENT est momentanément indisponible.',response.status>=400&&response.status<600?response.status:502);}
+     if(binary)return new Response(await readBytes(response,15*1024*1024),{headers:{'Content-Type':'application/octet-stream','Content-Disposition':response.headers.get('Content-Disposition')||'attachment','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+     const value=await readJSON(response,2*1024*1024);
+@@ -71,11 +84,12 @@
+     const value=await upstream('/sessions',{method:'POST',body:{externalUserId:user.id,scopes:input.scopes,state,codeChallenge}});
+     const launch=new URL(value.launchURL);
+     if(launch.origin!==new URL(ISSUER).origin||launch.username||launch.password||launch.hash||launch.pathname!=='/agenda/ent-connect'||[...launch.searchParams.keys()].length!==1||!/^[A-Za-z0-9_-]{43}$/.test(launch.searchParams.get('session')||''))fail('La demande de connexion reçue est invalide.',502);
++    phase='transaction';
+     const sealed=await seal({userId:user.id,state,verifier,expiresAt:now()+TTL},config.key);
+     return json({launchURL:launch.href,expiresAt:value.expiresAt},200,{'Set-Cookie':cookieHeader(sealed,TTL/1000)});
+    }
+    if(path==='/exchange'&&request.method==='POST'){
+-    clearCookie=true;const transaction=await open(cookieValue(request),config.key),input=await readJSON(request,4096);
++    phase='transaction';clearCookie=true;const transaction=await open(cookieValue(request),config.key),input=await readJSON(request,4096);
+     if(!exact(input,['code','state','iss'])||transaction.userId!==user.id||transaction.expiresAt<=now()||transaction.expiresAt>now()+TTL||input.state!==transaction.state||input.iss!==ISSUER||!/^[A-Za-z0-9_-]{43}$/.test(input.code||''))fail('Cette connexion ne correspond pas à votre compte Lapsus. Relancez-la.',409);
+     const value=await upstream('/exchange',{method:'POST',body:{code:input.code,codeVerifier:transaction.verifier}});
+     return json(value,200,{'Set-Cookie':cookieHeader('',0)});
+@@ -108,7 +122,16 @@
+    }
+    if(['activity','sync'].includes(action)&&request.method==='POST'&&!url.search){const input=await readJSON(request,1024);if(!exact(input,[]))fail('La demande contient des paramètres inattendus.');return json(await upstream('/connections/'+id+'/'+action,{method:'POST',body:{}}));}
+    fail('Service introuvable.',404);
+-  }catch(error){return json({error:error instanceof RequestError?error.message:'Le service ENT est momentanément indisponible.',...(error instanceof RequestError&&error.code?{code:error.code}:{})},error instanceof RequestError?error.status:502,clearCookie?{'Set-Cookie':cookieHeader('',0)}:{});}
++  }catch(error){
++   const known=error instanceof RequestError,status=known?error.status:502,code=known?error.code:'ENT_CONNECTOR_FAILURE';
++   let reference;
++   if(status>=500){
++    reference=crypto.randomUUID();
++    // Fixed fields only: never log error.message, URL, headers, user identity or credentials.
++    try{logger({event:'lapsus.ent.failure',reference,phase,code:code||'ENT_HTTP_'+status,status});}catch{}
++   }
++   return json({error:known?error.message:'Une erreur technique empêche la connexion ENT. Réessayez dans un instant.',...(code?{code}:{}),...(reference?{reference}:{})},status,clearCookie?{'Set-Cookie':cookieHeader('',0)}:{});
++  }
+  };
+ }
+ export const onRequest=createHandler();

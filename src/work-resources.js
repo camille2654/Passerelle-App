@@ -1,3 +1,4 @@
+import {assertPreviewOwner,sendDocumentPreview} from './document-preview.js';
 import {randomUUID} from 'node:crypto';
 import axios from 'axios';
 import {digest,random} from './store.js';
@@ -88,6 +89,7 @@ export function installResourceRoutes(router,{store,favorites,personalMail,auth,
   router.post('/api/work-resources/add',auth,(req,res)=>{rateLimit(req,'resource-add:'+req.user.id,50,900000);check(req,['workId','title','url','favoriteId']);if(typeof req.body.title!=='string'||req.body.title.length>200||req.body.workId!=null&&!validMessageId(req.body.workId)||req.body.url!=null&&typeof req.body.url!=='string'||req.body.favoriteId!=null&&!validMessageId(req.body.favoriteId)||!!req.body.url===!!req.body.favoriteId)throw new PublicError('Choisissez un document ou un lien.');res.json(resources.add(req.user,req.body));});
   router.post('/api/work-resources/:id/remove',auth,(req,res)=>{check(req);res.json(resources.remove(req.user,req.params.id));});
   router.get('/api/work-resources/:id/open',auth,(req,res)=>{rateLimit(req,'resource-read:'+req.user.id,80,900000);const row=resources.find(req.user,req.params.id);res.set('Referrer-Policy','no-referrer');if(row.kind==='link')return res.redirect(303,row.url);const file=favorites.download(req.user,row.favoriteId);res.attachment(file.name).type('application/octet-stream').send(file.bytes);});
+  router.get('/api/work-resources/:id/preview',auth,(req,res)=>{assertPreviewOwner(req);rateLimit(req,'resource-read:'+req.user.id,80,900000);const row=resources.find(req.user,req.params.id);if(row.kind!=='favorite')throw new PublicError('Ouvrez ce lien sur son service d’origine.',415);sendDocumentPreview(res,favorites.download(req.user,row.favoriteId));});
   router.get('/api/cloud-documents/providers',auth,(req,res)=>res.json(cloud.providers(req.user)));
   router.post('/api/cloud-documents/:provider/start',auth,(req,res)=>{rateLimit(req,'cloud-select:'+req.user.id,15,900000);check(req,['workId']);res.json(cloud.start(req,req.params.provider,req.body.workId??null));});
   router.get('/api/cloud-documents/oauth/:provider/callback',async(req,res)=>{res.set('Referrer-Policy','no-referrer');try{rateLimit(req,'cloud-callback',60,900000);const result=await cloud.callback(req,req.params.provider,req.query);res.redirect(303,baseURL+'/#'+(result.kind==='incoming'?'shared='+encodeURIComponent(result.token):'cloud-picker='+encodeURIComponent(result.token)));}catch{res.redirect(303,baseURL+'/#cloud-picker=error');}});

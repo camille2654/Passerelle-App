@@ -1,3 +1,4 @@
+import {assertPreviewOwner,sendDocumentPreview} from './document-preview.js';
 import {MAX_DOCUMENT_BYTES,MAX_FAVORITE_BYTES} from './upload-limits.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -40,6 +41,7 @@ export function installFavoriteRoutes(router,{store,school,auth,rateLimit,clock,
   router.post('/api/favorites/from-ent',auth,same,async(req,res)=>{rateLimit(req,'favorite-add:'+req.user.id,20,15*60000);res.json(await favorites.fromENT(req,req.body.ref));});
   router.post('/api/favorites/:id/remove',auth,same,(req,res)=>res.json(favorites.remove(req.user,req.params.id)));
   router.get('/api/favorites/:id/download',auth,(req,res)=>{rateLimit(req,'favorite-read:'+req.user.id,80,15*60000);const file=favorites.download(req.user,req.params.id);res.attachment(file.name).type('application/octet-stream').send(file.bytes);});
+  router.get('/api/favorites/:id/preview',auth,(req,res)=>{assertPreviewOwner(req);rateLimit(req,'favorite-read:'+req.user.id,80,15*60000);sendDocumentPreview(res,favorites.download(req.user,req.params.id));});
   const raw=express.raw({type:'application/octet-stream',limit:MAX_FILE});
   router.post('/api/favorites/upload',auth,(req,res,next)=>{if(req.get('x-passerelle-account')!==req.user.id)throw new PublicError('Le compte a changé. Rechargez Passerelle.',409);req.favoriteScope=favorites.scope(req.user);rateLimit(req,'favorite-upload:'+req.user.id,10,15*60000);raw(req,res,error=>error?next(new PublicError('Choisissez un document de moins de 30 Mo.',413)):next());},(req,res)=>{let name;try{name=decodeURIComponent(req.get('x-file-name')||'Document');}catch{throw new PublicError('Le nom du fichier est invalide.');}if(!store.state.sessions.some(session=>session.hash===req.session.hash&&session.userId===req.user.id&&session.expires>Date.now()))throw new PublicError('La connexion a changé. Relancez l’ajout.',409);res.json(favorites.save(req.user,req.body,name,'Personnel',req.favoriteScope));});
   return favorites;

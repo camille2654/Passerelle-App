@@ -63,6 +63,7 @@ export function installPersonalRoutes(router,{auth,store,rateLimit,audit,clock=(
   });
   router.post('/api/personal/balance',auth,(req,res)=>{rateLimit(req,'personal-balance',20,3600000);const plan=rebalance(req.user,clock());store.update(req.user.id,{personalVersion:clock(),personalTasks:plan.meta});res.json({ok:true,count:plan.count,overloadedDays:plan.overloadedDays});});
   router.post('/api/personal/notes',auth,(req,res)=>{
+    if(req.body.accountId!==undefined&&req.body.accountId!==req.user.id||req.body.studentId!==undefined&&req.body.studentId!==scope(req.user))throw new PublicError('Le compte ou l’élève a changé. Rouvrez cette matière.',409);
     rateLimit(req,'course-notes',100,3600000);const content=String(req.body.text||'').trim(),subject=personalSubjects(req.user).find(s=>s.key===req.body.subjectKey)||subjectFor({label:String(req.body.subjectLabel||'').trim()});
     if(!content||content.length>2000||!subject.label||subject.label.length>120||!req.body.subjectKey&&!String(req.body.subjectLabel||'').trim())throw new PublicError('Indiquez une matière et une note de 2 000 caractères maximum.');
     if(req.body.subjectKey&&!personalSubjects(req.user).some(s=>s.key===req.body.subjectKey))throw new PublicError('Cette matière n’appartient pas à votre espace.',404);

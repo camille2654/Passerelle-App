@@ -1,0 +1,278 @@
+{
+  "version": "4.16.0",
+  "palette": {
+    "forest": "#153D38",
+    "paper": "#F6F5EF",
+    "lime": "#D9EF78",
+    "coral": "#F2A38C",
+    "blue": "#C8D7F0",
+    "muted": "#63716A",
+    "line": "#DDE2D6"
+  },
+  "assets": [
+    {
+      "id": "banniere-principale",
+      "label": "Bannière principale",
+      "category": "Bannières",
+      "width": 1920,
+      "height": 640,
+      "alt": "Bannière Passerelle : Ta journée prend forme. Cours, devoirs et révisions, avec une illustration de passage en papier vert et citron.",
+      "caption": "",
+      "png": "exports/banniere-principale.png",
+      "source": "exports/banniere-principale.svg"
+    },
+    {
+      "id": "banniere-linkedin",
+      "label": "Couverture LinkedIn",
+      "category": "Bannières",
+      "width": 1584,
+      "height": 396,
+      "alt": "Bannière Passerelle : Ta journée prend forme. Cours, devoirs et révisions, avec une illustration de passage en papier vert et citron.",
+      "caption": "",
+      "png": "exports/banniere-linkedin.png",
+      "source": "exports/banniere-linkedin.svg"
+    },
+    {
+      "id": "banniere-x",
+      "label": "Couverture X",
+      "category": "Bannières",
+      "width": 1500,
+      "height": 500,
+      "alt": "Bannière Passerelle : Ta journée prend forme. Cours, devoirs et révisions, avec une illustration de passage en papier vert et citron.",
+      "caption": "",
+      "png": "exports/banniere-x.png",
+      "source": "exports/banniere-x.svg"
+    },
+    {
+      "id": "banniere-facebook",
+      "label": "Couverture Facebook",
+      "category": "Bannières",
+      "width": 1640,
+      "height": 624,
+      "alt": "Bannière Passerelle : Ta journée prend forme. Cours, devoirs et révisions, avec une illustration de passage en papier vert et citron.",
+      "caption": "",
+      "png": "exports/banniere-facebook.png",
+      "source": "exports/banniere-facebook.svg"
+    },
+    {
+      "id": "banniere-youtube",
+      "label": "Couverture YouTube · zone sûre centrale",
+      "category": "Bannières",
+      "width": 2560,
+      "height": 1440,
+      "alt": "Couverture YouTube : nom et signature Passerelle au centre, dans la zone visible sur téléphone, ordinateur et télévision.",
+      "caption": "",
+      "png": "exports/banniere-youtube.png",
+      "source": "exports/banniere-youtube.svg"
+    },
+    {
+      "id": "avatar",
+      "label": "Avatar · profil",
+      "category": "Identité",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Emblème original Passerelle sur un disque citron et un fond papier.",
+      "caption": "",
+      "png": "exports/avatar.png",
+      "source": "exports/avatar.svg"
+    },
+    {
+      "id": "post-01-decouvrir",
+      "label": "Découvrir Passerelle",
+      "category": "Publications",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Passerelle : moins de bruit, plus de repères. Une illustration de passage relie les cours et le quotidien.",
+      "caption": "Découvrir Passerelle : les cours de ton ENT, les devoirs et les révisions dans un espace clair. Bêta gratuite pour les établissements compatibles de l’ENT Auvergne-Rhône-Alpes.",
+      "png": "exports/post-01-decouvrir.png",
+      "source": "exports/post-01-decouvrir.svg"
+    },
+    {
+      "id": "post-02-agenda",
+      "label": "L’agenda",
+      "category": "Publications",
+      "width": 1080,
+      "height": 1350,
+      "alt": "La semaine sans le flou : exemple d’agenda avec deux cours fictifs et leurs salles.",
+      "caption": "Une salle qui change ? Un cours déplacé ? Retrouve les informations récupérées depuis ton ENT dans Passerelle. Ton application d’agenda choisit ensuite son délai d’actualisation.",
+      "png": "exports/post-02-agenda.png",
+      "source": "exports/post-02-agenda.svg"
+    },
+    {
+      "id": "post-03-devoirs",
+      "label": "Les devoirs",
+      "category": "Publications",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Ce soir, on y voit clair : liste illustrative de devoirs et de documents à préparer.",
+      "caption": "Avant de commencer, fais le point : devoirs à préparer, cours à relire et documents à retrouver. À ton rythme, une chose après l’autre.",
+      "png": "exports/post-03-devoirs.png",
+      "source": "exports/post-03-devoirs.svg"
+    },
+    {
+      "id": "post-04-partager",
+      "label": "Partager un document",
+      "category": "Publications",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Une photo et la suite prend forme : partager un document vers un devoir ou les favoris, puis confirmer son enregistrement.",
+      "caption": "Une photo, un PDF ou un lien à garder ? Envoie-le à Passerelle et choisis sa place. Tu vérifies le contenu avant de l’enregistrer. Sur iPhone, le raccourci de partage est à configurer.",
+      "png": "exports/post-04-partager.png",
+      "source": "exports/post-04-partager.svg"
+    },
+    {
+      "id": "carrousel-01-accroche",
+      "label": "Carrousel 1/5 · Le point de départ",
+      "category": "Carrousel",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Carrousel, première page : le lycée fait assez de bruit. Et si tu retrouvais tes repères ?",
+      "caption": "",
+      "png": "exports/carrousel-01-accroche.png",
+      "source": "exports/carrousel-01-accroche.svg"
+    },
+    {
+      "id": "carrousel-02-cours",
+      "label": "Carrousel 2/5 · Les cours",
+      "category": "Carrousel",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Carrousel, deuxième page : tes cours à portée de main, avec un exemple fictif d’emploi du temps.",
+      "caption": "",
+      "png": "exports/carrousel-02-cours.png",
+      "source": "exports/carrousel-02-cours.svg"
+    },
+    {
+      "id": "carrousel-03-travail",
+      "label": "Carrousel 3/5 · Les devoirs",
+      "category": "Carrousel",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Carrousel, troisième page : le travail qui vient après, avec une liste illustrative de devoirs.",
+      "caption": "",
+      "png": "exports/carrousel-03-travail.png",
+      "source": "exports/carrousel-03-travail.svg"
+    },
+    {
+      "id": "carrousel-04-documents",
+      "label": "Carrousel 4/5 · Les documents",
+      "category": "Carrousel",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Carrousel, quatrième page : une place pour tes documents, du partage à un devoir ou aux favoris.",
+      "caption": "",
+      "png": "exports/carrousel-04-documents.png",
+      "source": "exports/carrousel-04-documents.svg"
+    },
+    {
+      "id": "carrousel-05-decouvrir",
+      "label": "Carrousel 5/5 · Découvrir",
+      "category": "Carrousel",
+      "width": 1080,
+      "height": 1350,
+      "alt": "Carrousel, dernière page : fais le lien, garde le cap. Découvrir Passerelle, en bêta gratuite pour les ENT compatibles en Auvergne-Rhône-Alpes.",
+      "caption": "",
+      "png": "exports/carrousel-05-decouvrir.png",
+      "source": "exports/carrousel-05-decouvrir.svg"
+    },
+    {
+      "id": "story-01-decouvrir",
+      "label": "Story · Découvrir",
+      "category": "Stories",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Story Passerelle : ta journée prend forme. Tes cours, tes devoirs et la suite. Zone prévue pour un sticker de lien.",
+      "caption": "",
+      "png": "exports/story-01-decouvrir.png",
+      "source": "exports/story-01-decouvrir.svg"
+    },
+    {
+      "id": "story-02-nouveautes",
+      "label": "Story · Nouveautés",
+      "category": "Stories",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Story nouveautés : un panneau dans l’application présente les évolutions majeures de Passerelle.",
+      "caption": "",
+      "png": "exports/story-02-nouveautes.png",
+      "source": "exports/story-02-nouveautes.svg"
+    },
+    {
+      "id": "story-03-partager",
+      "label": "Story · Le partage",
+      "category": "Stories",
+      "width": 1080,
+      "height": 1920,
+      "alt": "Story partage : une photo, un PDF ou un lien vu en cours peut être conservé dans Passerelle après confirmation.",
+      "caption": "",
+      "png": "exports/story-03-partager.png",
+      "source": "exports/story-03-partager.svg"
+    },
+    {
+      "id": "couverture-agenda",
+      "label": "À la une · Agenda",
+      "category": "À la une",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Couverture de story à la une : Agenda, avec une icône Passerelle sur un disque de couleur.",
+      "caption": "",
+      "png": "exports/couverture-agenda.png",
+      "source": "exports/couverture-agenda.svg"
+    },
+    {
+      "id": "couverture-devoirs",
+      "label": "À la une · Devoirs",
+      "category": "À la une",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Couverture de story à la une : Devoirs, avec une icône Passerelle sur un disque de couleur.",
+      "caption": "",
+      "png": "exports/couverture-devoirs.png",
+      "source": "exports/couverture-devoirs.svg"
+    },
+    {
+      "id": "couverture-astuces",
+      "label": "À la une · Astuces",
+      "category": "À la une",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Couverture de story à la une : Astuces, avec une icône Passerelle sur un disque de couleur.",
+      "caption": "",
+      "png": "exports/couverture-astuces.png",
+      "source": "exports/couverture-astuces.svg"
+    },
+    {
+      "id": "couverture-documents",
+      "label": "À la une · Documents",
+      "category": "À la une",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Couverture de story à la une : Documents, avec une icône Passerelle sur un disque de couleur.",
+      "caption": "",
+      "png": "exports/couverture-documents.png",
+      "source": "exports/couverture-documents.svg"
+    },
+    {
+      "id": "couverture-nouveautes",
+      "label": "À la une · Nouveautés",
+      "category": "À la une",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Couverture de story à la une : Nouveautés, avec une icône Passerelle sur un disque de couleur.",
+      "caption": "",
+      "png": "exports/couverture-nouveautes.png",
+      "source": "exports/couverture-nouveautes.svg"
+    },
+    {
+      "id": "couverture-entraide",
+      "label": "À la une · Entraide",
+      "category": "À la une",
+      "width": 1080,
+      "height": 1080,
+      "alt": "Couverture de story à la une : Entraide, avec une icône Passerelle sur un disque de couleur.",
+      "caption": "",
+      "png": "exports/couverture-entraide.png",
+      "source": "exports/couverture-entraide.svg"
+    }
+  ]
+}

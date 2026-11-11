@@ -3,6 +3,7 @@ import {normalizeLabel} from './subjects.js';
 export const pronoteBinding = user => String(user.studentId || '') + ':' + String(user.schoolName || '');
 export const linkedPronote = user => !!user.pronote && !!user.studentId && user.pronoteBinding === pronoteBinding(user);
 export function mergeSourceWork(user) {
+  if(user.entConnectionKind==='pronote')return linkedPronote(user)?(user.pronoteAssignments||[]).map(item=>({...item,sources:['Pronote']})):[];
   const ent = (user.assignments || []).map(item => ({...item, sources: ['ENT']}));
   if (!linkedPronote(user)) return ent;
   const fingerprint = item => [item.due, normalizeLabel(item.subjectLabel), normalizeLabel(item.details || item.title)].join('|');

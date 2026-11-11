@@ -1,3 +1,294 @@
+## 4.26.4 — 8 novembre 2026 · première requête des nouveaux onglets
+
+- Le journal réel montre une navigation PRONOTE suivie de l’échec de capture,
+  sans démarrage d’import. Le serveur public PRONOTE répond bien depuis le
+  client HTTP employé par Playwright (302 élève, 200 initialisation mobile).
+- Reproduction exacte du message « Le portail ENT ne répond pas » avec le code
+  4.26.3 : vrai Chromium, serveur HTTP local, lien ouvert dans un nouvel onglet.
+  Le cadre de la première requête n’existe pas encore et son accès lève une erreur.
+- Le correctif passe les douze scénarios Chromium, dont nouvel onglet direct,
+  nouvel onglet après 302 et formulaire POST 307 dans un nouvel onglet. Les neuf
+  scénarios précédents (méthodes, boucles, destinations) restent couverts.
+- Dix tests Node ciblés : parseur, capture avant création du cadre, rôles, délais,
+  redirections et formulaires ; diagnostic limité à une étape et un code, sans
+  exception brute ni champ sensible. Les échanges de ces tests sont synthétiques.
+- Le formulaire complet passe en navigateur : bouton/Entrée, import visible,
+  confirmation, conservation de l’élève/source/ICS et récupération d’erreurs.
+- Après publication, un contexte anonyme séparé atteint la vraie page de
+  connexion CAS du lycée, puis y revient aussi après ouverture de PRONOTE dans
+  un nouvel onglet. Aucun identifiant saisi, aucune donnée scolaire consultée,
+  aucun compte de production créé. Ce contrôle public ne valide pas l’import
+  authentifié. HTTPS, les API privées et les 668 fichiers de l’archive sont vérifiés.
+- La confirmation de l’import authentifié sur le compte réel reste nécessaire.
+
+## 4.26.3 — 8 novembre 2026 · redirections de connexion
+
+- La seconde session réelle est authentifiée, et son HTML est reconnu par le
+  lecteur installé, mais aucun import n’a été lancé. Diagnostic de forme seul,
+  sans retour du HTML, des valeurs SSO ou des données scolaires.
+- Le défaut est reproduit dans un vrai Chromium avec une redirection HTTP 302
+  locale : le gestionnaire ne voit pas la destination et le navigateur consomme
+  le bootstrap. Aucun appel ENT réel pendant cette reproduction.
+- 29 tests Node ciblés passent : analyse, transfert, rôle, délais, domaines,
+  redirections, formulaires POST préservés, sources et abonnements existants.
+- Neuf scénarios de redirection passent dans Chromium avec le correctif :
+  GET 302/307/308, POST 302/303/307/308, boucle et domaine interdit. La capture
+  arrive une seule fois ; aucun bootstrap n’est consommé par le navigateur.
+- Le protocole d’échange authentifié et l’import sur le compte du lycée restent
+  à confirmer après une nouvelle connexion ; ces tests sont locaux et synthétiques.
+
+## 4.26.2 — 8 novembre 2026 · reprise SSO PRONOTE
+
+- Diagnostic autorisé de la fenêtre réelle : espace Élève authentifié, bootstrap
+  présent avec champs SSO, mais état Passerelle encore `login`. Seule la forme
+  technique a été retournée ; aucun contenu scolaire ni secret n’a été affiché.
+  L’inspection locale a été refermée et son port de boucle locale est fermé.
+- Défaut 4.26.1 reproduit sur un POST à la racine : navigation poursuivie sans
+  transfert, état `login`. Avec le correctif, capture unique et confirmation.
+- 26 tests Node ciblés : formats encodés et JSON, parseur sans exécution de code,
+  GET/POST et racines, rôle Élève, délai sans transfert, captures interrompues,
+  normalisation, élève/ICS conservés et rotations de sources.
+- Quatre tests Python hors réseau : transfert et vérification mobile, cookies
+  PRONOTE uniquement avec échéances, maintien de l’identifiant et migration de
+  l’ancienne adresse mobile, refus des destinations non autorisées.
+- La vraie page publique mobile du serveur indiqué par la capture répond avec
+  le sélecteur natif ; sans lui elle redirige vers le CAS. Le parseur de la
+  bibliothèque installée accepte son bootstrap. Aucune authentification réelle
+  ni lecture des données d’un compte pendant cette vérification publique.
+- `pronote-form-browser.smoke.mjs` : formulaire réel, POST SSO à la racine,
+  étape d’import visible, clavier/image masqués pendant l’import, récupération
+  après requête d’image annulée, erreurs persistantes, lien collé, absence de
+  navigation native, reprise d’URL et élève/source/ICS conservés ; mobile,
+  ordinateur, sombre, mouvement réduit ; aucune erreur JS/CSP.
+- `multi-ent-browser.smoke.mjs` : recherche nationale et source principale
+  ENT→PRONOTE toujours valides aux quatre largeurs. Serveurs et comptes simulés.
+- L’import complet sur le lycée réel nécessite une nouvelle connexion avec le
+  correctif : la fenêtre observée a expiré après le diagnostic de forme.
+
+## 4.26.1 — 8 novembre 2026 · formulaire PRONOTE
+
+- Défaut 4.26.0 reproduit en Chromium : le vrai formulaire navigue vers l’accueil
+  et n’appelle pas l’API ENT. Aucune connexion ENT réelle pendant la reproduction.
+- 16 tests Node ciblés passent (PRONOTE et multi-ENT), dont la sélection de l’ENT
+  connecté, les liens PRONOTE directs nettoyés, les origines et espaces refusés,
+  l’association explicite des élèves et la conservation des données.
+- Le nouveau parcours `pronote-form-browser.smoke.mjs` utilise le vrai formulaire,
+  son API et un menu ENT synthétique. Bouton et Entrée, ENT automatique, clic
+  PRONOTE, confirmation, lien copié, aucune navigation native, erreur en place,
+  nettoyage des anciennes URL sans envoi des champs, source/élève/ICS conservés.
+  Mobile, ordinateur, sombre et mouvement réduit ; aucune erreur JS/CSP.
+- Le parcours national et la connexion ENT→PRONOTE comme source principale restent
+  vérifiés par `multi-ent-browser.smoke.mjs`, avec quatre largeurs.
+- `npm run check` : syntaxe des modules. Aucun mail ni compte de test en production.
+- Les échanges ENT/PRONOTE des tests sont simulés. L’ouverture réelle du SSO du
+  lycée doit être confirmée par son utilisateur dans la fenêtre de connexion.
+
+## 4.26.0 — 8 novembre 2026 · ENT de plusieurs régions
+
+- `npm run check` : syntaxe des modules existants et nouveaux connecteurs.
+- 46 tests Node ciblés : core, PRONOTE, rotations Skolengo, connecteur Lapsus,
+  catalogue et parcours ENT→PRONOTE. Deux tests Python de contrat hors réseau.
+- `multi-ent-browser.smoke.mjs` : recherche nationale et filtre, portail inconnu,
+  connexion ENT simulée, confirmation de l’élève, notes, création ICS comme
+  source principale, services absents masqués, isolation et déconnexion.
+  Largeurs 320/390/820/1440, thème sombre, mouvement réduit, aucune erreur JS/CSP.
+- `hub-browser.smoke.mjs` : recherche, rattrapage, fiches, bilan, connexion PRONOTE
+  complémentaire, notes/bulletins, assistance utilisateur/admin, brouillons,
+  mobile/sombre/mouvement réduit et confidentialité à la déconnexion.
+- Les cours annulés gardent leur identifiant lors d’un renouvellement de référence ;
+  les devoirs terminés avant création de l’ICS gardent leur état après import.
+- Aucun appel ENT réel, aucun mail et aucun compte de test en production.
+  La compatibilité des nouveaux SSO doit être confirmée avec des utilisateurs réels.
+  Couverture et limites : [MULTI_ENT.md](docs/MULTI_ENT.md).
+
+## Travail, cours et documents · 4.25.0
+
+Les 28 tests ciblés passent : favoris et documents liés, découverte, nouvel aperçu et regroupement des échéances. L’aperçu refuse les comptes et élèves incorrects, les copies d’un autre profil et les formats non pris en charge ; les liens externes ne sont pas suivis. Les réponses binaires ont les bons types et restent privées, sans cache. Les tests de dates couvrent les changements de mois et d’année et une transition d’heure de Paris, sans mutation des objets reçus. Un ENT ne fournissant pas les devoirs propose l’ajout manuel. Le contrôle de syntaxe complet passe, complété par celui de la dernière adaptation de texte.
+
+Le nouveau parcours Chromium termine avec une sortie 0 : quatre groupes d’échéance, ordre des travaux, groupe des terminés, suivi et annulation réelle, formulaire court, détails facultatifs et brouillon conservé. Les fiches passent au cours précédent/suivant de la journée, conservent les brouillons par matière et enregistrent une note personnelle. Le lecteur dessine effectivement des pixels de texte d’un PDF de test valide, change de page, agrandit le rendu et télécharge l’original. Une photo est décodée et un format non pris en charge conserve le téléchargement. Les copies liées aux devoirs s’ouvrent dans le même lecteur. Une réponse retardée ne peut pas repeindre un document après le changement de compte. Les nouveaux états vides conduisent à une action utile.
+
+Les largeurs 320, 390, 820 et 1440 px ne débordent pas ; le thème sombre et la réduction du mouvement sont exercés. Les captures des devoirs, de la fiche et du lecteur sont inspectées. Aucune erreur JavaScript/CSP, aucun appel ENT réel, aucun mail réel : seules des données et des comptes fictifs sont utilisés.
+
+Les parcours complets existants de l’agenda et de la recherche/matières terminent aussi avec une sortie 0. Ils conservent les annulations, regroupements, changements depuis la visite, notes, suivi des devoirs, dates, pauses, glissement, défilement et nettoyage. Le parcours de recherche est adapté à l’ouverture réelle du lecteur avant le téléchargement ; il valide également la distribution minifiée de PDF.js. Les filtres, rattachements de documents, brouillons, fiches de révision, réponses tardives et changements de compte restent vérifiés. Aucun essai sur iPhone physique ni déploiement Lapsus n’est affirmé.
+
+Les fichiers PDF.js et leurs licences viennent du paquet officiel pdfjs-dist 6.5.438, dont l’intégrité SHA-512 a été vérifiée avant extraction. Aucun paquet n’a été installé dans les dépendances de production et aucun CDN n’est appelé au rendu.
+
+## Plus simplifié et animations · 4.24.0
+
+Le parcours Chromium dédié termine avec une sortie 0. Il vérifie les quatre raccourcis et les six liens d’action immédiatement visibles, les groupes repliés, l’accès aux outils regroupés et à l’administration. Il mesure un rendu intermédiaire réel du repère de navigation, du dépliage et de la fiche de cours : leurs positions et hauteurs passent effectivement entre l’état initial et l’état final. Les quatre cartes sont animées progressivement. Le clavier, l’inversion rapide de l’ouverture des groupes, la fermeture des fiches, le recalage du repère après changement de largeur et le nettoyage à la déconnexion sont vérifiés.
+
+Les largeurs 320, 390, 820 et 1440 px ne débordent pas. Le thème sombre et la réduction du mouvement sont contrôlés. Avec la réduction activée, les groupes restent utilisables immédiatement et aucune animation ne reste active. Les captures mobile et ordinateur sont inspectées. Aucune erreur JavaScript/CSP, aucun appel ENT réel et aucun mail réel.
+
+Le parcours existant de l’expérience termine également avec une sortie 0 : réglages, applications connectées, connexion, erreurs et reprise, agenda, date et défilement conservés, suivi et annulation réelle des devoirs, refus d’écriture, brouillon de note et changement de profil. Les données et comptes sont fictifs. Les contrôles de syntaxe des fichiers modifiés passent.
+
+Une vérification isolée du script d’administration confirme que sa minuterie et son raccourci restent inactifs tant que le script principal n’a pas défini son état. Ce contrôle couvre la course au démarrage relevée pendant une navigation du navigateur de test. Aucun essai sur iPhone physique ni déploiement Lapsus n’est affirmé.
+
+## Parcours et présentation · 4.23.0
+
+Les 25 tests ciblés passent : agenda, actions de devoir, fiches matières et démarrage. La vérification de syntaxe initiale complète passe ; les fichiers modifiés ensuite sont vérifiés à nouveau individuellement.
+
+Le nouveau parcours Chromium termine avec une sortie 0 : réglages en quatre groupes, applications connectées accessibles, connexion en trois étapes avant et après récupération, recherche d’établissement conservée après erreur, échec d’ouverture de l’ENT, reconnexion, source indisponible et interruption réseau. Le retour dans l’agenda rétablit la date et le défilement après le chargement ; la fermeture d’un cours retrouve le bouton recréé après actualisation. Les cases et annulations écrivent réellement dans le stockage temporaire. Les annulations refusées sont signalées dans la fiche ou la confirmation, sans effacer le statut sauvegardé. Le brouillon de note reste présent. L’annulation fonctionne également dans Devoirs et Mes matières. Les changements de compte effacent les actions et positions du profil précédent.
+
+Les largeurs 320, 390, 820 et 1440 px sont vérifiées sans débordement horizontal, ainsi que le thème sombre et la réduction du mouvement. L’ouverture de fiche est également exercée sans réduction du mouvement. Les captures sont inspectées sur mobile. Aucune erreur JavaScript/CSP, aucun appel ENT réel, aucun mail réel : les comptes et données sont fictifs.
+
+Le parcours complet existant de l’agenda termine aussi avec une sortie 0 : vues, regroupement, cours actuel, changements depuis la visite, fiche, suivi des devoirs, refus d’écriture, notes, glissement, horaires, récréations/déjeuner, annulations, événements et nettoyage à la déconnexion. Ces contrôles concernent Passerelle ; aucun déploiement Cloudflare de Lapsus ni essai sur iPhone physique n’est affirmé.
+
+## Correctif du connecteur Cloudflare externe · 7 novembre 2026
+
+Les 15 tests ciblés du connecteur et de son client passent, dont les redirections 300/301/302/303/304/307/308 d’Auth et de Passerelle, l’absence de suivi avec des identifiants, les pannes réseau, la corrélation des diagnostics sans secrets et la résistance à une panne du journal. Les parcours existants de session, PKCE, cookie chiffré, compte propriétaire, chemins autorisés, suppression de compte, mails et actualités restent couverts.
+
+Le véritable moteur `workerd@1.20261106.1` reproduit le refus de l’ancienne option `redirect: 'error'` puis valide la fonction corrigée : Auth et Passerelle synthétiques, 401 de session expirée, redirections refusées, erreurs de transport distinguées, PKCE et cookie chiffré. Le moteur ne dispose d’aucun accès Internet ; aucun compte réel, ENT ou mail réel n’est utilisé. Les deux patches s’appliquent à leur base attendue, le ZIP complet est identique au résultat du patch et l’aperçu visuel reste identique. La syntaxe est vérifiée.
+
+Les archives et guides sont publiés sur Passerelle pour le propriétaire de Lapsus. Aucun déploiement Cloudflare ni écriture GitHub distant n’est effectué ; la connexion réelle d’un utilisateur reste à vérifier après le redéploiement par ce propriétaire. L’application Passerelle, ses services et sa version 4.22.0 restent inchangés par la publication de ces ressources.
+
+## Recherche et fiches matières · 4.22.0
+
+Les 44 tests ciblés passent : recherche avec accents, catégories avant limitation, compteurs, catalogue par élève, cours actifs/annulés, travail à faire et terminé, documents et associations, refus des comptes et profils étrangers, données locales sans appel ENT, absence de contenu de fichier dans l’index, favoris supprimés et documents dont la matière a disparu. Les notes refusent un ancien compte ou élève avant toute écriture. Les régressions des documents, ressources, agenda, outils personnels et statut restent couvertes. La vérification de syntaxe complète passe ; les fichiers modifiés ensuite ont leur syntaxe revérifiée.
+
+Le nouveau parcours Chromium termine avec une sortie 0 : recherche depuis l’en-tête et au clavier, filtres, téléchargement privé, fiches matières, devoir fait puis remis à faire, note et contenu échappé, association d’un favori, accès aux révisions, brouillon conservé lors d’un rafraîchissement ou d’une panne, réponse tardive ignorée et changement de compte pendant une saisie. Les largeurs 320, 390, 820 et 1440 px sont contrôlées, ainsi que le thème sombre, le mouvement réduit et l’en-tête administrateur sur 320 px. Aucun débordement ni erreur JavaScript/CSP ; aucun ENT ni mail réel utilisé.
+
+Les parcours existants des outils et de l’agenda passent également : Pronote simulé, recherche, fiches de révision, support membre/administrateur, navigation de semaine et de journée, annulations, changements, notes, devoirs et retour arrière. Un accès au compte avant l’initialisation du script a été signalé par un premier parcours ; le nouveau raccourci vérifie désormais l’initialisation avant toute lecture, et le parcours relancé termine sans erreur avec collecte des piles. Les fichiers de test et les données restent isolés de la production.
+
+## Graphiques du statut et suivi indépendant · 4.21.1
+
+Les 16 tests ciblés passent : six tests Python du moniteur et dix tests Node du statut et des graphiques. Ils vérifient l’absence de données privées, l’écriture atomique et les droits du fichier public, la conservation après redémarrage, la rétention, les données invalides/futures/dupliquées, les réponses HTTP invalides ou anciennes, les échecs sans latence artificielle et le refus d’une URL externe. Les calculs de médiane, compteurs, points isolés, interruptions de courbe et périodes sans mesure sont contrôlés.
+
+Le nouveau parcours Chromium termine avec une sortie 0 : graphiques filtrables sur 1/6/24 h, compteurs exacts sur les seules observations reçues, consultation au clavier et au toucher, table accessible, point unique, absence de données, réponse invalide, mesures anciennes et fichier d’historique accessible quand l’API courante est en panne. Les détails des services restent ouverts au rafraîchissement. Les largeurs 320, 390, 820 et 1440 px ne débordent pas, en clair/sombre et mouvement réduit, sans erreur JavaScript/CSP. Les observations fictives du test restent isolées ; elles ne sont pas publiées.
+
+Le parcours précédent de la page de statut passe également : absence de cookie, maintenance, pause, panne, réponse invalide, retrait du vert, reprise, historique récent et lien depuis le portail. Un essai HTTP local réel confirme trois observations successives : backend actif, arrêté, puis rétabli ; l’historique survit et l’échec conserve `responseMs: null` au lieu d’une mesure de zéro milliseconde, sans donnée de compte. Les contrôles de syntaxe et la validation de l’unité systemd passent. Aucun ENT ni mail réel n’est utilisé par les essais.
+
+Après publication, HTTPS confirme la version 4.21.1, les sept ressources statiques et l’historique JSON issu de vrais contrôles. Les graphiques, leurs ressources et les mesures restent accessibles pendant l’arrêt du backend ; le processus du moniteur conserve le même identifiant pendant le redémarrage de Passerelle. Les deux services sont actifs sans redémarrage sur erreur. La modification Nginx ajoute seulement l’emplacement du JSON public et conserve les autres routes.
+
+Le parcours Chromium public termine avec une sortie 0 : vraies observations chargées, graphiques et six frises, filtres 1/6/24 h, clavier, modes sombre et mouvement réduit, largeurs 320/390/820/1440 px sans débordement ni erreur JavaScript/CSP. Seuls les deux points publics du suivi sont consultés ; les APIs privées restent protégées. Aucun compte de test n’a été créé en production. Les huit comptes, cinq liens ICS, réglages mail/push, configuration du connecteur et clé de chiffrement sont conservés.
+
+## Page de statut publique · 4.21.0
+
+Les 33 tests ciblés passent : suivi des services, configuration distincte des observations, déduplication des passages, échec/reprise sans erreur brute publiée, signaux anciens ou futurs, pauses/maintenance, auto-contrôle ICS, historique borné et isolation des réponses publiques. La réponse est identique avec une session membre, administrateur ou sans session ; les comptes, adresses, tokens et liens ICS restent absents et les fichiers privés inchangés. Les parcours existants d’administration, comptes, calendrier et authentification restent couverts. La vérification de syntaxe complète passe.
+
+Le parcours Chromium de la nouvelle page termine avec une sortie 0 : six services, récupération sans cookie, services non activés distincts, maintenance, pause, historique, erreur HTTP, réponse invalide, retrait des états verts après vieillissement et reprise. Les largeurs 320, 390, 820 et 1440 px ne débordent pas ; modes clair/sombre et mouvement réduit sont vérifiés. Le lien de pied de page reste accessible depuis l’application sur petit écran. Aucune erreur JavaScript/CSP, aucun appel ENT et aucun mail réel.
+
+Un démarrage réel de `src/server.js` sur un répertoire temporaire confirme les signaux des minuteries de synchronisation et de push après leur premier passage. Cette instance ne contient aucun compte et ne réalise aucun appel ENT ni envoi de mail. Les observations ne sont pas déclenchées artificiellement par la page et aucun statut configuré n’est assimilé à une vérification réussie.
+
+Après publication, HTTPS confirme la page, ses six ressources publiques, l’API 4.21.0 et ses six composants. La page et toutes ses ressources sont vérifiées pendant l’arrêt du service Node, tandis que l’API est indisponible. Les deux emplacements Nginx ajoutés sont les seuls changements de configuration ; les routes existantes sont identiques. Le rechargement gracieux est suivi d’une vérification des nouvelles routes avant l’arrêt du backend.
+
+Le parcours Chromium public en production termine avec une sortie 0 aux quatre largeurs, en sombre et mouvement réduit, sans erreur JavaScript/CSP et avec seulement l’API publique de statut consultée. L’icône Apple reste identique et les APIs privées refusent l’accès anonyme. Aucun compte de test n’a été créé en production. Les huit comptes, cinq liens ICS, réglages mail/push, connecteur et clé de chiffrement sont conservés ; le service est actif sans redémarrage sur erreur.
+
+## Icônes de matières dans l’agenda · 4.20.4
+
+Les 15 tests ciblés passent : heures de Paris, chevauchements, annulations, regroupement, pauses et bilan des horaires. Le contrôle de présentation vérifie les pictogrammes de maths, langue et matière inconnue, les titres lisibles sans préfixe emoji dans les vues journée et semaine, les sigles et la conservation exacte des objets source.
+
+Le parcours complet Chromium de l’agenda termine avec une sortie 0 : les quatre blocs de cours de la journée de référence contiennent chacun un SVG visible et aucun texte emoji dans le pictogramme. Les titres restent lisibles aux largeurs 320, 390, 820 et 1440 px, sans débordement horizontal. Les vues semaine/journée, thèmes clair/sombre, mouvement réduit, détail de cours, devoirs faits/remis à faire, refus d’enregistrement, brouillon de note, pauses/récréations, dates, glissement et déconnexion restent vérifiés. Aucune erreur JavaScript/CSP, aucun appel ENT ou mail réel ; seules des données temporaires sont utilisées. Les contrôles de syntaxe passent.
+
+HTTPS confirme la version 4.20.4, les trois ressources d’agenda publiées et leurs nouveaux marqueurs de cache. Les octets correspondent aux fichiers testés. L’API semaine reste privée et l’icône Apple reste identique. Les huit comptes, cinq liens ICS, réglages privés, connecteur et clé de chiffrement sont conservés. Aucun compte de test n’a été créé en production ; le service est actif sans redémarrage sur erreur.
+
+## Récréations et pauses déjeuner · 4.20.3
+
+Les 15 tests ciblés de l’agenda et du bilan des horaires passent. Les assertions de pauses vérifient deux récréations de quinze minutes, le déjeuner de 12:10 à 13:05, les plages de 11 h à 13 h et de 13 h à 14 h, ainsi que les interruptions en dehors de cette fenêtre. Une interruption de quinze minutes reste une récréation à midi. Les rendez-vous personnels, annulations, chevauchements et cours adjacents conservent leur traitement ; les objets source restent identiques.
+
+Le parcours visuel ciblé termine avec une sortie 0 en Chromium aux largeurs 320, 390, 820 et 1440 px : deux libellés Récréation et un libellé Pause déjeuner visibles, durée et horaires réels conservés, en-tête compact sur une ligne et date persistante au défilement. Le thème sombre reste lisible. Aucun débordement de page ni erreur JavaScript/CSP. Les contrôles de syntaxe passent. Ces vérifications utilisent des données et comptes fictifs, sans appel ENT ou mail réel.
+
+HTTPS confirme la version 4.20.3 et les fichiers testés. L’API semaine reste privée et l’icône Apple est inchangée. Les huit comptes, cinq liens ICS, réglages privés, connecteur et clé de chiffrement sont conservés. Aucun compte de test n’est créé en production ; le service reste actif sans redémarrage sur erreur.
+
+## Agenda compact, date persistante et pauses · 4.20.2
+
+Les 15 tests ciblés passent : présentation de l’agenda, heures de Paris, chevauchements, séances regroupées, préservation des sources et bilan des horaires. Les cas ajoutés vérifient les pauses de quinze et cinquante-cinq minutes, l’absence de pause artificielle entre cours adjacents, les événements personnels et les annulations. Aucun repas ni disponibilité personnelle n’est déduit d’un créneau.
+
+Le parcours Chromium complet de l’agenda termine avec une sortie 0 : bandeau au défilement et au-dessus des cartes, flèches de jour, retour à aujourd’hui sans requête de semaine supplémentaire, passage dimanche/lundi dans les deux sens, navigation des semaines et date native. Les actions existantes restent vérifiées : devoir fait/remis à faire, cohérence avec Devoirs, refus d’enregistrement, brouillon conservé, note personnelle, glissement, annulations, événements et nettoyage à la déconnexion. Aucun débordement horizontal aux largeurs 320, 390, 820 et 1440 px ; thèmes clair/sombre et mouvement réduit conservés, aucune erreur JavaScript/CSP.
+
+Le contrôle visuel complémentaire vérifie l’en-tête compact sur une ligne aux quatre largeurs, le bandeau persistant et le thème sombre. Les vérifications utilisent uniquement des comptes et données temporaires ; aucun appel ENT ni mail réel. La vérification de syntaxe passe. Aucun essai sur un iPhone physique n’est affirmé.
+
+Le contrôle HTTPS confirme la version 4.20.2 et les fichiers publiés. L’API semaine reste privée, l’icône Apple est identique et le kit Lapsus reste disponible. Le parcours public instrumenté final termine avec une sortie 0, sans débordement aux quatre largeurs et sans erreur JavaScript/CSP. Un premier passage avait relevé « state is not defined » sans pile ; cette erreur ne s’est pas reproduite lors du contrôle instrumenté. Aucun compte de test n’a été créé en production. Les huit comptes, cinq liens ICS, réglages privés et clé de chiffrement sont conservés ; le service est actif sans redémarrage sur erreur.
+
+## Bilan des horaires et validation des devoirs depuis un cours · 4.20.1
+
+Les 54 tests ciblés passent : calcul des conséquences des changements, action de devoir réversible et réservée au propriétaire, vue de semaine, calcul d’agenda existant, historique/repère de consultation, authentification et flux ICS, synchronisation rapprochée et organisation personnelle. Le test API de l’action vérifie aussi le signal de modification commun aux autres vues.
+
+Les calculs comparent les limites réelles des cours actifs de la journée : annulation du premier cours, modification du dernier, absence d’effet d’une annulation intérieure, changements successifs et rétablissement, cours déplacé entre dates, journée sans cours et nouveaux cours. Un historique incomplet, un ancien état d’annulation inconnu ou des horaires invalides ne donnent pas lieu à une annonce déduite. La fusion des consultations en cours garde le premier repère et efface les effets annulés par un rétablissement. Le calcul ne modifie aucun événement source.
+
+Le parcours Chromium de l’agenda termine avec une sortie 0 : résumé concret, cours regroupés, progression, détail de cours, coche et remise à faire, état conservé à la réouverture, cohérence de la page Devoirs, restauration de la case après refus et conservation du brouillon de note. Les parcours existants de navigation, annulations, événements personnels, devoirs, notes et déconnexion restent couverts. Thèmes clair/sombre, mouvement réduit et largeurs 320, 390, 820 et 1440 px sans débordement ni erreur JavaScript/CSP. Les données sont fictives ; aucun ENT ni mail réel n’est utilisé.
+
+Le parcours navigateur des outils termine également avec une sortie 0 : historique depuis la dernière consultation, recherche, rattrapage, fiches, bilan, assistance et confidentialité à la déconnexion. Les données de préparation du test indiquent que les nouveautés de la version précédente ont déjà été consultées ; le parcours de ces nouveautés reste indépendant.
+
+Après publication, HTTPS confirme la version 4.20.1 et les ressources testées. L’API semaine reste privée, l’icône Apple garde les mêmes octets et le kit Lapsus existant reste servi. Le parcours public Chromium termine avec une sortie 0 aux quatre largeurs, sans erreur JavaScript/CSP ni compte de test créé en production. Les huit comptes, cinq liens ICS, réglages mail/push, configuration du connecteur et clé de chiffrement sont conservés. Le service est actif sans redémarrage sur erreur.
+
+## Agenda interactif et mails/actualités Lapsus · 4.20.0
+
+Les 329 tests de la suite complète Passerelle passent sans échec. Ils comprennent le regroupement visuel des séances adjacentes sans modifier les sources, les plages de Paris et changements d’heure, les annulations, le repère de dernière visite et les fonctions existantes. Les nouveaux essais du connecteur couvrent les permissions séparées des mails/actualités, les listes privées mises en cache, les contenus intégraux, les documents bornés, les références liées au compte et à sa source, le refus de références d’un autre compte, les rubriques non fournies et les erreurs temporaires. Un changement d’élève pendant une actualité en cours de chargement rejette la réponse et ne transfère pas son contenu au nouveau profil.
+
+Les douze tests de la fonction Cloudflare et du client Lapsus passent. Le contrat entre les deux services réels locaux passe avec Auth et ENT simulés : PKCE, agenda/devoirs, mails, actualités, contenu intégral, téléchargement et isolation, avec conservation exacte des comptes/sessions du portail. Les tokens ENT et la clé serveur ne sont pas transmis dans les réponses publiques.
+
+Le parcours Chromium de l’agenda vérifie les créneaux regroupés, le cours actuel et sa progression, les indications de changement de salle depuis la dernière visite, le panneau de cours, un ajout de note par l’API, le glissement des jours, le nettoyage du dialogue à la déconnexion, la navigation des semaines, les annulations et les sources complémentaires. Les largeurs 320, 390, 820 et 1440 px restent sans débordement. Les thèmes clair/sombre et le mouvement réduit sont vérifiés, sans erreur JavaScript/CSP.
+
+Le parcours Chromium Lapsus vérifie les mails et actualités dans les écrans existants, le texte intégral échappé, une pièce jointe téléchargée et les pages de messages précédents. Il couvre aussi les modifications/suppressions de cours, la conservation des imports et devoirs personnels, les changements de source, les réponses tardives, la déconnexion et la suppression du compte. Il termine avec une sortie 0, aux largeurs 320, 390 et 1440 px en clair/sombre. Aucun ENT, compte Supabase ou mail réel n’est utilisé par ces essais.
+
+Le parcours global de navigation Passerelle et le parcours de connexion ENT gérée terminent également avec une sortie 0 : rubriques, réglages, administration, déconnexion, choix d’élève, saisie distante, PKCE et affichage des nouveaux types de données. Le patch Lapsus est appliqué sur sa base Git de référence puis comparé au ZIP et aux fichiers testés.
+
+Le kit Lapsus est préparé pour son propriétaire ; les variables Cloudflare et le déploiement distant restent nécessaires avant un essai ENT réel. Aucun déploiement Lapsus ni essai sur un iPhone physique n’est affirmé.
+
+Après publication, HTTPS confirme la version 4.20.0, les fichiers livrés, le kit Lapsus et son aperçu avec mails/actualités. Les APIs privées refusent l’accès anonyme. Le parcours public Chromium termine avec une sortie 0, sans erreur JavaScript/CSP, sans débordement aux quatre largeurs et sans appel API depuis l’aperçu. L’icône Apple reste identique. Les huit comptes, cinq liens ICS, réglages SMTP/push, configuration du connecteur et clé de chiffrement sont conservés. Le service reste actif sans redémarrage sur erreur et aucun compte de test n’est créé en production.
+
+## Vue journée : cartes compactes après retour sur capture
+
+Les six tests unitaires de présentation passent : les contrôles existants sont conservés et complétés par les libellés ENT, les emojis sans doublon, les sigles LV2, les noms personnalisés, les durées et la conservation exacte des objets source. Les intervalles tiennent compte de la fin des activités chevauchantes et ne sont pas bloqués par les cours annulés.
+
+Le parcours Chromium dédié vérifie aussi une journée fictive reproduisant la structure de la capture reçue : cinq cours, dont deux créneaux consécutifs d’histoire-géographie, les intitulés en majuscules, les salles et l’intervalle de midi. À 390 px, les cinq cartes et leur intervalle occupent moins de 520 px ; les titres complets restent visibles à 320, 390, 820 et 1440 px. Les emojis ont leur taille dédiée et la sélection du dimanche reste visible. Les thèmes clair/sombre, les annulations, les vues journée/semaine, les chevauchements, les devoirs, les événements personnels et du lycée, les transports et les commandes de navigation sont conservés. Aucun appel ENT, aucun envoi de mail et aucun compte de production ne sont utilisés par ce parcours.
+
+Après publication, les fichiers servis en HTTPS correspondent aux sources testées et le parcours public termine avec une sortie 0 : aucun débordement aux quatre largeurs, aucune erreur JavaScript/CSP, API semaine réservée aux comptes connectés et icône Apple préservée. Les huit comptes, cinq liens ICS, réglages mail/push et clé de chiffrement sont conservés. Le backend reste identique et le service est actif sans redémarrage sur erreur. Aucun essai sur un iPhone physique n’est affirmé.
+
+## Agenda : grille horaire et vue journée
+
+Quatre tests unitaires passent sur la présentation : heures de Paris en été et hiver, changement d’heure avec heure répétée, découpage à minuit, gestion des chevauchements, éléments sur une journée entière et horaires incomplets, annulations, devoirs et contrôles, données échappées et date des transports.
+
+Le parcours Chromium dédié termine avec une sortie 0. Il vérifie la grille des sept jours, les titres visibles, les chevauchements, les vues Semaine et Journée, la sélection des jours et son défilement, les cours annulés, les devoirs et contrôles, les rendez-vous personnels et du lycée, les transports, les semaines vides, les flèches et le choix de date. La préférence de vue reste après rechargement. Les changements de vue et de jour ne provoquent pas de nouvelle lecture de semaine. Aucun débordement de page à 320, 390, 820 et 1440 px ; thèmes clair/sombre et animations réduites contrôlés, sans erreur JavaScript ou CSP. Seuls des comptes temporaires et données fictives sont utilisés.
+
+Les assertions du parcours global de navigation passent également (quatre rubriques, devoirs, réglages, notifications, administration et déconnexion). Cette exécution a ensuite été terminée pendant la fermeture de son processus ; le parcours dédié à l’agenda a confirmé sa propre fermeture normale. Aucun appel ENT ou envoi de message réel n’a été effectué par les essais.
+
+Après publication, HTTPS confirme le nouvel index, les fichiers livrés et le chargement du composant avant son intégration. Le parcours public Chromium ne relève aucune erreur JavaScript/CSP et les quatre largeurs restent sans débordement. L’API semaine refuse l’accès anonyme ; l’icône Apple inline garde les mêmes octets. Les huit comptes, cinq liens ICS, réglages mail/push et clé de chiffrement sont conservés. Les fichiers du backend restent identiques et le service est actif sans redémarrage sur erreur. Aucun compte de test n’a été créé en production.
+
+## Présentation de l’application Passerelle inspirée de Lapsus
+
+L’application principale utilise des cartes arrondies, une navigation compacte, des icônes issues de Lapsus et des textes plus lisibles. Le logo, Manrope et les couleurs claire/sombre de Passerelle sont conservés. Les formulaires publics, l’accueil, l’agenda, les devoirs, les outils et les réglages partagent cet habillage.
+
+La revue Chromium utilise uniquement des comptes et données synthétiques. Les cinq vues principales sont contrôlées à 320, 390, 820 et 1440 pixels, sans débordement horizontal. L’en-tête et la navigation mobile restent visibles. L’ordre personnalisé des blocs est enregistré par l’API puis vérifié à l’écran. Le mode sombre, les animations réduites, la connexion et l’inscription sur petit écran sont également contrôlés. Aucun compte réel ni envoi réel n’est utilisé pour ces vérifications.
+
+Les parcours existants vérifient les quatre destinations, les premiers pas, le choix aujourd’hui/demain, les annulations, les devoirs et leurs états, les réglages et notifications, l’administration, la console et le nettoyage à la déconnexion. Le parcours scolaire couvre les matières, les rappels, les contrôles personnels, les changements de salle et les mails via un transport simulé. Les fixtures de test ferment leurs connexions HTTP et suivent les dialogues de bienvenue et de nouveautés avant d’accéder aux outils.
+
+Après publication, HTTPS sert les fichiers validés et le nouvel index. Le parcours Chromium public vérifie connexion, inscription, thème sombre et absence de débordement aux quatre largeurs, sans créer de compte réel. L’icône Apple inline correspond exactement au PNG existant. Les huit comptes, cinq abonnements ICS, réglages mail/push et clé de chiffrement sont conservés ; les fichiers du backend restent identiques. Le service est actif sans redémarrage sur erreur. Aucun essai sur un iPhone physique n’est affirmé.
+
+## Habillage du connecteur ENT pour Lapsus
+
+Les pages de connexion utilisent les couleurs et Manrope de Passerelle, les cartes et contrôles inspirés de Lapsus, ainsi que ses icônes de lycée, clé, agenda et validation. Le logo Lapsus identifie la destination. La police et les icônes sont servies localement. La signature fournisseur se limite à « Powered by PSRL ». Les styles ne chargent plus ceux du portail Passerelle et restent isolés de son interface.
+
+Le parcours Chromium du connecteur passe sur des sources synthétiques : établissement, saisie et clavier mobile, choix d’élève, synchronisation, retour PKCE, annulation et administration. Les couleurs et la police de Passerelle, les icônes Lapsus et la signature discrète sont contrôlées. Le parcours Lapsus vérifie aussi sa carte ENT, les données, les modifications et suppressions, l’isolation et la suppression de compte. Aucun appel ENT, Supabase ou message réel n’est effectué.
+
+L’aperçu public est contrôlé avec Chromium en 320, 390, 768 et 1440 px, en clair et sombre avec animations réduites. Aucun débordement horizontal, aucune erreur JavaScript ou CSP, aucun appel API ni aucune ressource de police distante. Les captures publiées montrent uniquement l’écran initial, sans compte ni établissement réel. Le kit Lapsus est actualisé ; son site distant n’est pas déployé par cette modification.
+
+Après publication, les ressources HTTPS correspondent aux fichiers validés. L’aperçu Chromium en ligne passe : logo Lapsus, couleurs et police Passerelle, icônes Lapsus, signature PSRL, interaction de démonstration et absence d’appel API ou d’erreur. Les huit comptes et cinq liens ICS, les réglages privés et la clé de chiffrement sont conservés. Les ressources de l’application Passerelle et son backend restent identiques ; aucun redémarrage du service n’a été nécessaire. Le patch Lapsus a été appliqué à sa base Git de référence et comparé aux fichiers testés.
+
+## Connecteur ENT géré et synchronisation adaptative · version 4.19.0
+
+318 tests de la suite complète Passerelle passent, aucun échec. Ils incluent les fenêtres proches et la conservation de l’année complète, les devoirs hors plage, les changements de source pendant attente et la suspension pendant réponse, le recul après erreur, la cadence Paris, les profils techniques isolés, les permissions REST, le code PKCE unique, la révocation et le renouvellement préventif des tokens. Après le correctif de suppression de compte, les 13 tests du connecteur ont été relancés avec succès, dont un cas supplémentaire : retrait sans cache local, connecteur désactivé, clé et sujet toujours obligatoires, isolation, purge et révocation. Les contextes de connexion ENT gérés sont libérés après succès et échec ; les parcours du portail restent compatibles.
+
+Le parcours Chromium Passerelle géré a terminé avec une sortie 0 : lycée, saisie et clavier mobile, plusieurs élèves, synchronisation, retour PKCE, annulation, administration et clé affichée une fois, masquage à la fermeture, désactivation et déconnexion. Aucun compte Passerelle n’est demandé dans ce parcours. Largeurs 320, 390 et 1440 px, sombre et animations réduites contrôlés, sans appel ENT ni mail réel.
+
+Dans le dépôt Lapsus préparé, 10 tests unitaires passent : fonction Cloudflare, vérification Auth côté serveur, cookie chiffré, scopes, routes, retour lié au compte, nettoyage de l’URL avant Supabase, instantanés limités à leur plage, identifiants stables et retrait de la connexion avant suppression. Son scénario Chromium termine avec une sortie 0 : cours/devoirs/contrôles REST, changements et suppressions sans fantômes, préservation des imports et devoirs manuels, cache de source invalidé, réponse tardive après déconnexion, autre compte et mobile/sombre. Le parcours de suppression vérifie aussi l’arrêt avant RPC si le nettoyage échoue, l’affichage d’un échec RPC, le nettoyage distant sans cache local et l’effacement du cache du compte malgré la déconnexion. Supabase, API et ENT y sont simulés.
+
+Le script `scripts/verify-lapsus-contract.mjs` appelle ensemble la véritable fonction Cloudflare locale et la véritable API Passerelle locale, en simulant seulement Supabase Auth et l’ENT. Le contrat PKCE, les JSON normalisés, l’isolation de deux sujets Lapsus, le nettoyage idempotent lorsque le connecteur est désactivé, l’absence de tokens source dans les réponses et la préservation exacte des comptes/sessions du portail sont vérifiés. Aucun appel Supabase ou ENT réel ni aucun message réel par ces essais.
+
+La clé du connecteur n’est pas préconfigurée en production. Le propriétaire de Lapsus doit intégrer les fichiers préparés et renseigner les variables Cloudflare avant un test de connexion réel. L’accès GitHub disponible est en lecture seule ; aucune branche distante ni déploiement Lapsus n’est modifié. Le paquet ZIP et le patch correspondent aux fichiers testés, sans .env, données privées, journaux ou dépendances. Aucun test sur un iPhone physique ni sur un véritable compte ENT/Lapsus n’est affirmé.
+
+Contrôle après publication : HTTPS confirme la version 4.19.0, les ressources livrées et les deux kits Lapsus (ICS existant et nouveau connecteur REST). Les 8 comptes et les 5 abonnements existants sont conservés, ainsi que leurs identifiants, SMTP, VAPID, appareils push, prise en main et clé de chiffrement. Les 2 804 événements actifs sont lisibles et aucun événement annulé n’est publié. Doctor, OCR et systemd sont sains. Le contrôle Chromium public confirme l’icône Apple inline, les nouveaux scripts et l’absence d’erreur JavaScript. Les routes de données sont fermées tant que le connecteur n’est pas configuré ; le retrait par DELETE exige toujours sa clé serveur. Aucun profil de test ni clé partenaire réelle n’a été créé en production. Le ZIP Lapsus correspond aux fichiers testés et le patch a été appliqué puis comparé au code testé sur sa base Git d’origine.
+
+## Connexion partenaire Lapsus · version 4.18.0
+
+Validation sur données synthétiques : 284 tests de la suite complète et 3 tests du module Lapsus passent (287 distincts, aucun échec). Les 14 tests OAuth vérifient les callbacks exactes, le consentement lié au navigateur et au compte, PKCE S256, le refus et le sous-ensemble de permissions, le code unique et sa révocation après rejeu, les durées de vie, CORS, le chiffrement, les droits ICS imposés côté serveur, les modifications/annulations, la révocation indépendante, le changement d’élève/source/lien et la suspension, les réglages administrateur et le redémarrage. Les trois tests du module fourni à Lapsus couvrent un échange réel avec le backend local, la liaison au compte Lapsus, les retours invalides ou périmés, le nettoyage de l’URL, ETag et le refus de liens étrangers. Aucun service distant n’est appelé par ces tests.
+
+Le parcours Chromium local a terminé avec une sortie 0 : arrivée sans session, connexion puis reprise du consentement, choix minimal des agendas, refus, échange de code et lecture ICS, retrait d’accès sans modifier le flux maître, accompagnement d’un compte sans ENT, administration de la callback et de l’activation, et nettoyage à la déconnexion. Rendu contrôlé en 320, 390 et 1440 px, en sombre et avec animations réduites ; pas de débordement ni d’erreur JavaScript/CSP. Aucun mail, push ou appel ENT réel. Une première exécution ralentie avait terminé ses assertions avant une terminaison du shell ; l’exécution finale sans suite concurrente a confirmé la sortie 0.
+
+Contrôle après publication : HTTPS confirme la version 4.18.0 et les fichiers livrés. Les APIs privées refusent l’accès anonyme ; la prévalidation CORS accepte uniquement l’origine prévue et ne partage pas les cookies. Les 8 comptes, leurs identifiants et les 5 abonnements existants sont préservés, de même que SMTP, VAPID, appareils push, prise en main et clé de chiffrement. Les 2 807 événements actifs gardent leurs UID et leurs ETag ; aucun événement annulé n’est publié. Doctor, OCR et systemd sont sains, sans redémarrage sur erreur. Le contrôle Chromium anonyme du site public passe avec les nouveaux scripts et l’icône Apple inline conservée. Aucun compte de test de production n’a été créé, aucun code Lapsus n’a été modifié et aucun message réel n’a été envoyé par les vérifications.
+
+Le kit est livré avec un adaptateur volontairement à compléter. Le site Lapsus n’a pas été modifié : son développeur doit créer le bouton, servir la callback et brancher le stockage privé du compte connecté. Aucun essai sur un véritable compte Lapsus ni un iPhone physique n’est affirmé. La tâche transports reste en pause, sans changement de fournisseur ni de configuration existante.
+
 # Validation Passerelle 3.1.0
 
 ## Sources réelles et continuité
@@ -311,3 +602,54 @@ Quinze tests ciblés de partage et favoris passent. Après vérification de la b
 
 
 Après mise en ligne : la version HTTPS 4.15.2 et les ressources publiques sont vérifiées ; un fichier synthétique de 13 Mio traverse Nginx et l’application et produit un brouillon temporaire valide, sans compte de test ni document enregistré en production. Un champ file envoyé en texte renvoie bien le code précis SHARE_FILE_FIELD. Les trois flux ICS restent accessibles sans événement annulé publié. Les sept comptes, les secrets de flux, les réglages SMTP, les clés et appareils push et la clé de stockage sont préservés. Le diagnostic et l’OCR passent ; le service est actif sans redémarrage automatique. La configuration Nginx est validée avant rechargement, avec 32m pour Passerelle et 26m conservés pour Repère. Le modèle de déploiement Nginx est mis à jour avec la même valeur.
+
+
+## Envoi direct depuis Raccourcis · 4.15.3
+
+Le même point d’entrée POST /share accepte désormais le corps brut « Fichier » de Raccourcis, avec Entrée du raccourci, sans dépendre de l’enveloppe multipart. Les photos et PDF reçoivent un nom adapté à leur signature ou à leur type ; un nom facultatif encodé reste borné et nettoyé. Les types JSON et URL-encodés sont refusés explicitement. Les autres API gardent leur parseur JSON et leur protection d’origine ; le partage multipart existant reste compatible. Les limites restent à un fichier de 30 Mio, un envoi public simultané et 60 Mio de brouillons pendant dix minutes.
+
+Les cinq premiers nouveaux tests passent : photos JPEG, PDF et données binaires, noms Unicode, isolation compte/session/élève, confirmation explicite, idempotence, absence d’écriture implicite et aller-retour d’un fichier brut de exactement 30 Mio par les favoris chiffrés avec empreinte identique. Le vrai serveur est vérifié pour le refus JSON, le fichier sans Content-Type et l’accès authentifié obligatoire à la confirmation. Les quinze scénarios existants de partage et favoris passent également, ainsi que vingt-quatre tests de documents liés, inscription et fonctions centrales. Le contrôle syntaxique complet passe. Les essais utilisent des comptes et fichiers synthétiques temporaires, sans établissement ni message réel.
+
+Le raccourci de l’utilisateur ne peut pas être modifié à distance : son corps doit encore être remplacé par Fichier et lié à Entrée du raccourci. Le fonctionnement sur un iPhone physique restera à confirmer après ce réglage.
+
+Un sixième test confirme le rejet à 413 d’un fichier de 31 Mio transmis en morceaux sans Content-Length, puis d’un multipart tronqué avec le code SHARE_MULTIPART_INVALID. Un nouvel envoi direct valide reste possible immédiatement après ces erreurs. Au total, 45 tests ciblés distincts passent, sans échec.
+
+Après déploiement : HTTPS confirme la version 4.15.3 et les ressources servies. Un fichier brut synthétique de 13 Mio traverse le proxy et produit son URL de brouillon ; un PDF multipart reste accepté, un formulaire tronqué donne les nouvelles instructions et un contenu JSON est refusé explicitement. Aucun compte de test ni document conservé n’est créé en production. Les sept comptes, trois flux, leurs 1 407 événements actifs, UID et ETag, les réglages SMTP, les clés/appareils push et la clé de stockage sont préservés. Le diagnostic administrateur et l’OCR passent ; le service reste actif avec zéro redémarrage automatique. La configuration Nginx et les dépendances sont inchangées.
+
+
+## Le studio et les annonces majeures · 4.16.0
+
+Une illustration originale a été créée avec image_gen, puis composée avec le logo existant et Manrope. La campagne fournit 24 PNG aux dimensions natives et 24 SVG éditables : cinq bannières (principale, LinkedIn, X, Facebook, YouTube avec zone centrale), avatar, quatre publications, carrousel cinq pages, trois stories et six couvertures à la une. La galerie, les légendes, les textes alternatifs et le guide sont publics. Les dimensions PNG et le XML des sources sont vérifiés. Les archives sociale, icônes et créative sont relues sans erreur et n’incluent aucun contenu de compte. Les exemples scolaires sont fictifs. Aucun contenu n’est publié sur un réseau social.
+
+La famille Repères contient 56 icônes SVG originales, avec manifeste FR, sprite, galerie et générateur. Les 29 identifiants de l’interface précédente sont conservés dans le nouveau sprite. Le logo et les PNG d’installation restent inchangés. Les sources SVG sont XML valides et leur régénération déterministe a été vérifiée.
+
+Le panneau de nouveautés monte depuis le bas, présente la bannière et trois points forts et reste accessible dans Plus → Nouveautés de Passerelle. Chaque annonce majeure possède son propre identifiant ; les correctifs mineurs ne réinitialisent pas la lecture. La fermeture explicite est enregistrée pour le compte, sans migration globale, ni mail ni push. Le guide, les autres dialogues et les champs de saisie ont priorité. Les changements de cours conservent une entrée distincte dans Plus.
+
+Vingt tests Node ciblés passent, couvrant annonces, prise en main, inscriptions et publication ICS. Les trois nouveaux tests vérifient confidentialité, lecture sans écriture implicite, authentification et origine, paramètres stricts, isolation des comptes, idempotence et persistance après redémarrage complet. Le contrôle syntaxique complet et les sources des générateurs passent.
+
+Le parcours Chromium des annonces passe avec de vrais appels au serveur temporaire : apparition unique, acquittement persistant, rechargement sans réapparition, réouverture volontaire, clavier/Échap et retour du focus, retrait à la déconnexion, comptes isolés, report pendant un autre dialogue ou une saisie, priorité à la bienvenue et au guide, apparition après pause ou fin. Les captures inspectées couvrent 320, 390 et 1440 px, clair, sombre et mouvement réduit, sans débordement ni erreur JavaScript/CSP. Un bouclage explicite de Tab empêche de sortir des commandes du panneau. Aucun appel externe, mail réel, permission de notification ou abonnement push n’est demandé. La bannière légère est chargée dans le panneau. Les essais restent distincts d’une validation sur iPhone physique.
+
+Le parcours navigateur existant de prise en main passe aussi : inscription publique, accueil des nouveaux comptes, pause/reprise, exercices dans l’agenda et les devoirs, progression par compte, préservation des brouillons et déconnexion. Le parcours des icônes iPhone confirme les octets PNG d’origine, leur opacité, le manifeste et son identité, la déclaration Apple intégrée, le cache des seules icônes publiques et l’absence de cache des API/documents privés. Aucun iPhone physique n’a été utilisé pour ces contrôles.
+
+Après déploiement, HTTPS confirme la version 4.16.0, treize ressources publiques principales identiques aux fichiers validés, les 48 exports PNG/SVG, les 56 SVG individuels et les trois archives téléchargées sans altération. L’acquittement anonyme est refusé. Les sept comptes, mots de passe, rôles et clés de flux, SMTP, clés/appareils push, progression du guide et clé de stockage sont préservés. Les trois flux conservent leurs 1 407 événements actifs, UID et ETag ; aucun événement annulé n’est republié. Le diagnostic, l’OCR et le service passent avec zéro redémarrage automatique. Aucun compte de test ni envoi réel n’a été effectué en production.
+
+Le dernier parcours public HTTPS confirme les galeries Studio et Repères à 320 et 1440 px, les 24 visuels et 56 icônes, Manrope chargé, des glyphes SVG non vides, aucun débordement horizontal, aucune erreur de ressource/JavaScript et aucun appel tiers. Les contrôles restent anonymes, sans création de compte en production.
+
+
+## Mon trajet et temps réservé · 4.17.0
+
+Le nouveau parcours utilise l’adresse de l’établissement déjà présent dans la connexion ENT, un géocodage IGN/BAN avec vérification des correspondances et un départ choisi par GPS ou recherche. La géolocalisation est appelée une fois après clic, sans suivi continu ni sauvegarde implicite. La mémorisation et l’oubli sont explicites. Les liens Plans/Google Maps sont construits pour les points choisis et inversés au retour. Le connecteur Navitia demande une arrivée avant le premier cours ou un départ après le dernier ; il présente la fraîcheur réellement fournie, et non celle seulement demandée. Le calcul intégré reste désactivé en production sans jeton.
+
+L’ajout d’un bloc de trajet est confirmé par un jeton temporaire lié au compte, à la session et au contexte scolaire. Le même jour et le même sens modifient un événement stable. La semaine privée et les créneaux de révision tiennent compte du trajet ; l’export ICS est volontaire, générique et sans adresse/GPS. Les positions ponctuelles et les adresses des extrémités ne sont pas conservées lors de la confirmation, même dans le détail chiffré. Les cours modifiés ou annulés mettent les trajets à revoir et retirent leurs exports reconstruits. La reconnexion ENT reconstruit un flux conservé pour retirer les trajets de l’ancien contexte. Les disponibilités entre amis gardent leur périmètre scolaire.
+
+Quarante-neuf tests Node ciblés distincts passent : onze du service/calcul et de ses API, sept nouveaux du calendrier de transport, quatorze de transport existant, cinq de publication ICS, neuf de planning et trois d’annonces majeures. Ils couvrent authentification, origine, profils, paramètres stricts, retours inversés, dates et changement d’heure, refus des propositions périmées, chiffrement, oubli, absence de coordonnées même après déchiffrement d’un trajet ponctuel, secrets admin masqués, changements de connexion, UID, reprises, retrait des exports et conservation des anciens comportements. Le contrôle syntaxique complet passe.
+
+Le parcours Chromium réel du serveur temporaire passe : lycée depuis l’ENT, aucun appel GPS à l’ouverture, position au clic, refus et recherche d’adresse, brouillon conservé lors d’une actualisation, mémorisation/oubli, proposition manuelle, confirmation dans la semaine, option ICS décochée au départ, modification sans doublon, retrait, configuration administrateur avec clé chiffrée non réaffichée, test de couverture et trajet du fournisseur simulé. Les captures 320/390/1440 px couvrent clair, sombre et mouvement réduit sans débordement ni erreur JavaScript/CSP. Les données, comptes, positions et jetons sont fictifs ; aucun mail, abonnement push ou appel de transport réel n’est effectué par le navigateur.
+
+Un appel indépendant avec le vrai code HTTP atteint le service IGN avec une adresse publique de l’IGN et retourne un point valide. Aucun compte existant ni position personnelle n’est utilisé. Aucun jeton Navitia, compte fournisseur, paiement ou couverture TCL/STAS réelle n’est provisionné ou validé par ces tests. La localisation native et l’ouverture effective de Plans sur iPhone physique restent à confirmer sur l’appareil de l’utilisateur.
+
+La suite Node complète passe dans sa version finale : **270 tests, zéro échec**, environ 247 secondes. Elle inclut les anciennes fonctions, les parcours de stockage et publication, ainsi que les nouveaux trajets. Aucun fournisseur payant ni donnée personnelle de production n’est utilisé pour cette validation.
+
+Un contrôle ciblé supplémentaire couvre le cas où l’ENT ne fournit qu’une ville ou où le géocodeur renvoie le centre d’une commune : ces réponses ne sont jamais présentées comme une localisation précise du lycée. Elles demandent un choix explicite. Le test de résolution d’établissement passe après cet ajout.
+
+Contrôle final en production : HTTPS confirme 4.17.0 et les ressources publiques identiques aux fichiers validés. Les API de trajet et de connexion fournisseur sont refusées sans session et sans cache. Aucun réglage Navitia n’a été créé automatiquement ; le calcul intégré est toujours désactivé. Les huit comptes, les cinq liens d’agenda, leurs 2 809 événements actifs, UID et ETag, les réglages SMTP, les clés/appareils push, le guide de démarrage et la clé de stockage sont préservés. Le diagnostic administrateur, l’OCR et le service passent avec zéro redémarrage automatique. Le parcours public Chromium vérifie aussi le chargement sans erreur JavaScript, l’icône Apple intégrée d’origine et le manifeste inchangé. Aucun compte de test, position réelle ou appel de calcul de transport n’est créé en production. Les onze tests du nouveau service passent encore après le renforcement du cas des villes seules.

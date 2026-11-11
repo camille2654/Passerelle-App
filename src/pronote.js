@@ -1,3 +1,4 @@
+import {isEntPronote,clearEntData} from './ent-profile.js';
 import {accountActive,automationAllowed} from './operational-state.js';
 import {spawn} from 'node:child_process';
 import fs from 'node:fs';
@@ -14,17 +15,17 @@ import {activityPatch, assignmentChanges} from './activity.js';
 
 const workerPath = fileURLToPath(new URL('./pronote-worker.py', import.meta.url));
 const DEFAULT_PYTHON = path.resolve(path.dirname(workerPath), '../../agenda-bridge-pronote-venv/bin/python');
-const messages = {AUTH_EXPIRED: 'La connexion Pronote a expiré. Générez un nouveau QR code dans Pronote.', INVALID_QR: 'Le QR code ou son code à 4 chiffres est incorrect ou expiré. Générez-en un nouveau.', MFA_REQUIRED: 'Pronote demande le code de sécurité de votre compte. Renseignez-le puis générez un nouveau QR code.', SOURCE_UNAVAILABLE: 'Pronote ne répond pas. Les dernières informations reçues sont conservées.', UNSUPPORTED: 'Cette fonction n’est pas fournie par ce serveur Pronote.', SOURCE_CHANGED: 'L’élève ou la connexion a changé. Relancez la connexion Pronote.'};
+const messages = {AUTH_EXPIRED: 'La connexion PRONOTE a expiré. Reconnectez-vous depuis votre ENT.', ENT_AUTH_REQUIRED: 'La connexion PRONOTE depuis l’ENT n’a pas été reconnue. Reconnectez-vous à votre ENT puis ouvrez PRONOTE.', MFA_REQUIRED: 'PRONOTE demande son code de sécurité. Renseignez-le dans les options de connexion puis recommencez.', SOURCE_UNAVAILABLE: 'Pronote ne répond pas. Les dernières informations reçues sont conservées.', UNSUPPORTED: 'Cette fonction n’est pas fournie par ce serveur Pronote.', SOURCE_CHANGED: 'L’élève ou la connexion a changé. Relancez la connexion Pronote.'};
 export function validatePronoteURL(input) {
   let url;
-  try { url = new URL(String(input)); } catch { throw new PublicError('Le QR code ne contient pas une adresse Pronote valide.'); }
-  if (url.protocol !== 'https:' || url.username || url.password || url.port || !/^[a-z0-9-]+\.index-education\.net$/i.test(url.hostname) || !/^\/pronote\/(?:mobile\.)?eleve\.html$/.test(url.pathname) || url.hash) throw new PublicError('Utilisez le QR code de votre espace Élève Pronote hébergé sur index-education.net. Pour une installation propre à votre lycée, contactez l’administration de Passerelle.');
+  try { url = new URL(String(input)); } catch { throw new PublicError('L’adresse PRONOTE transmise par l’ENT est invalide.'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || !/^[a-z0-9-]+\.index-education\.net$/i.test(url.hostname) || !/^\/pronote\/(?:mobile\.)?eleve\.html$/.test(url.pathname) || url.hash) throw new PublicError('Ce serveur PRONOTE n’est pas encore pris en charge. Les espaces Élève hébergés sur index-education.net sont acceptés ; contactez l’assistance pour un serveur propre au lycée.');
   return url;
 }
 export function runPronoteWorker(payload, onCredentials, {python = process.env.AGENDA_PRONOTE_PYTHON || DEFAULT_PYTHON, timeout = 180000} = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(python, ['-B', workerPath], {stdio: ['pipe', 'pipe', 'ignore'], env: {...process.env, PYTHONUNBUFFERED: '1'}});
-    let buffer = '', bytes = 0, snapshot = null, failure = null, settled = false;
+    let buffer = '', bytes = 0, snapshot = null, failure = null,phase=null, settled = false;
     const finish = (error, value) => { if (settled) return; settled = true; clearTimeout(timer); error ? reject(error) : resolve(value); };
     const timer = setTimeout(() => { child.kill('SIGKILL'); finish(new Error('SOURCE_UNAVAILABLE')); }, timeout); timer.unref();
     child.on('error', () => finish(new Error('SOURCE_UNAVAILABLE')));
@@ -41,11 +42,11 @@ export function runPronoteWorker(payload, onCredentials, {python = process.env.A
           const value = JSON.parse(line);
           if (value.kind === 'credentials') {onCredentials(value.credentials); child.stdin.write(JSON.stringify({ack:'credentials'}) + '\n');}
           if (value.kind === 'snapshot') snapshot = value.snapshot;
-          if (value.kind === 'error') failure = value.code;
+          if(value.kind==='error'){failure=value.code;if(['startup','bootstrap','ent-auth','token-auth','mobile-verify','read-data'].includes(value.stage))phase=value.stage;}
         } catch { child.kill('SIGKILL'); finish(new Error('SOURCE_UNAVAILABLE')); }
       }
     });
-    child.on('close', code => finish(code || failure || !snapshot ? new Error(messages[failure] ? failure : 'SOURCE_UNAVAILABLE') : null, snapshot));
+    child.on('close', code => finish(code || failure || !snapshot ? Object.assign(new Error(messages[failure]?failure:'SOURCE_UNAVAILABLE'),{phase}) : null, snapshot));
     child.stdin.write(JSON.stringify(payload) + '\n');
   });
 }
@@ -88,17 +89,24 @@ export function normalizePronoteAssignments(user, snapshot, origin) {
   });
   return {assignments:result,scopeKey};
 }
+export function stablePronoteCourses(previous,rows) {
+ const old=previous||[],used=new Set();
+ const exact=l=>[normalizeLabel(l.subject),l.start,l.end].join('|'),day=l=>[normalizeLabel(l.subject),parisDate(new Date(l.start))].join('|'),raw=l=>String(l.sourceId||l.id);
+ const index=(list,key)=>{const m=new Map();for(const row of list){const k=key(row);if(!m.has(k))m.set(k,[]);m.get(k).push(row);}return m;};
+ const maps=[index(old,exact),index(old,raw),index(old,day)],incoming=[index(rows,exact),index(rows,raw),index(rows,day)],keys=[exact,raw,day];
+ return rows.map(row=>{let match;for(let i=0;i<keys.length;i++){const key=keys[i](row),candidates=maps[i].get(key)||[];if(candidates.length===1&&incoming[i].get(key)?.length===1&&!used.has(candidates[0])){match=candidates[0];break;}}if(match)used.add(match);return {...row,sourceId:raw(row),id:match?.id||digest([row.id,row.start,row.subject].join(':'))};});
+}
 export class PronoteService {
   constructor(store, {clock = () => Date.now(), audit = null, worker = runPronoteWorker} = {}) { this.store = store; this.clock = clock; this.audit = audit; this.worker = worker; this.running = new Set(); this.queue = Promise.resolve(); this.waiting = 0; }
   get ready() { return this.worker !== runPronoteWorker || fs.existsSync(process.env.AGENDA_PRONOTE_PYTHON || DEFAULT_PYTHON); }
   pendingPreview(user) {
     const snapshot = user.pendingPronoteSnapshot;
     if(!snapshot || !user.pendingPronoteId || !user.pendingPronote || user.pendingPronoteBinding !== pronoteBinding(user) || this.clock()-user.pendingPronoteAt>10*60000)return null;
-    return {candidate:user.pendingPronoteId,identity:{name:snapshot.identity.name,className:snapshot.identity.className,school:snapshot.identity.school},entStudent:user.students?.find(item=>item.id===user.studentId)?.name||user.name,entSchool:user.schoolName};
+    return {primary:!!user.pendingEntPrimary,candidate:user.pendingPronoteId,identity:{name:snapshot.identity.name,className:snapshot.identity.className,school:snapshot.identity.school},entStudent:user.students?.find(item=>item.id===user.studentId)?.name||user.name,entSchool:user.schoolName};
   }
   publicSettings(user) {
     const linked = linkedPronote(user), snapshot = linked ? user.pronoteSnapshot : null;
-    return {ready: this.ready, connected: !!user.pronote, linked, needsConfirmation: !!this.pendingPreview(user), pending: this.pendingPreview(user), enabled: user.pronoteSyncEnabled !== false, needsReconnect: !!user.pronoteNeedsReconnect, syncing: this.running.has(user.id), identity: snapshot?.identity ? {name: snapshot.identity.name, className: snapshot.identity.className, school: snapshot.identity.school} : null, lastSync: linked ? user.pronoteLastSync || null : null, lastError: user.pronoteError || null, sections: Object.fromEntries(Object.entries(snapshot?.sections || {}).map(([key, value]) => [key, {state: value.state, fetchedAt: value.fetchedAt, warning: value.warning}]))};
+    return {connectionMethod:'ent',primary:isEntPronote(this.store,user),ready: this.ready, connected: !!user.pronote, linked, needsConfirmation: !!this.pendingPreview(user), pending: this.pendingPreview(user), enabled: user.pronoteSyncEnabled !== false, needsReconnect: !!user.pronoteNeedsReconnect, syncing: this.running.has(user.id), identity: snapshot?.identity ? {name: snapshot.identity.name, className: snapshot.identity.className, school: snapshot.identity.school} : null, lastSync: linked ? user.pronoteLastSync || null : null, lastError: user.pronoteError || null, sections: Object.fromEntries(Object.entries(snapshot?.sections || {}).map(([key, value]) => [key, {state: value.state, fetchedAt: value.fetchedAt, warning: value.warning}]))};
   }
   async operate(user, read) {
     if (this.running.has(user.id)) throw new PublicError('Une consultation Pronote est déjà en cours.', 409);
@@ -108,42 +116,49 @@ export class PronoteService {
     this.queue = new Promise(resolve => { release = resolve; });
     try { await previous; return await read(); } finally { this.waiting--; this.running.delete(user.id); release(); }
   }
-  async connect(user, body) {
-    if (!this.ready) throw new PublicError('Le connecteur Pronote doit être installé par l’administration.', 503);
-    if (!user.skolengo || !user.studentId) throw new PublicError('Connectez d’abord votre ENT et choisissez votre élève avant d’associer Pronote.', 409);
-    let qr;
-    try { qr = typeof body.qr === 'string' ? JSON.parse(body.qr) : body.qr; } catch { throw new PublicError('Le contenu du QR code est invalide.'); }
-    const url = validatePronoteURL(qr?.url);
-    if (!/^[0-9a-f]{16,8192}$/i.test(qr?.login || '') || !/^[0-9a-f]{16,8192}$/i.test(qr?.jeton || '') || qr.login.length%32 || qr.jeton.length%32 || !/^\d{4}$/.test(String(body.pin || '')) || String(body.accountPin || '').length > 128) throw new PublicError('Choisissez un QR code Pronote récent et son code à 4 chiffres.');
-    qr = {url:url.href,login:qr.login,jeton:qr.jeton};
+  async connect() {throw new PublicError('La connexion par QR code a été retirée. Connectez PRONOTE depuis votre ENT.',410);}
+  async connectENT(user, capture, portal, {primary=false, isCurrent=()=>true,accountPin=''}={}) {
+    if (!this.ready) throw new PublicError('Le connecteur PRONOTE doit être installé par l’administration.',503);
+    if (!primary && (!user.skolengo || !user.studentId)) throw new PublicError('Connectez d’abord votre ENT.',409);
+    const url=validatePronoteURL(capture?.url);
+    if(typeof capture.html!=='string'||Buffer.byteLength(capture.html)>1024*1024||!Array.isArray(capture.cookies)||capture.cookies.length>200)throw new PublicError('La connexion ENT est incomplète. Recommencez.',400);
     const binding = pronoteBinding(user), id = randomUUID(), started = this.clock();
     return this.operate(user, async () => {
-      this.store.update(user.id, {pendingPronoteId: id, pendingPronote: null, pendingPronoteSnapshot: null, pendingPronoteBinding: binding, pendingPronoteAt: started});
+      this.store.update(user.id, {pendingPronoteId: id, pendingPronote: null, pendingPronoteSnapshot: null, pendingPronoteBinding: binding, pendingPronoteAt: started,pendingEntPrimary:primary?{portalURL:new URL(portal.url).origin+new URL(portal.url).pathname,providerId:portal.provider.id,providerLabel:portal.provider.label}:null});
       try {
-        const snapshot = await this.worker({mode: 'qr', qr, pin: String(body.pin), accountPin: String(body.accountPin || ''), uuid: randomUUID(), today: parisDate(new Date(this.clock())), window: dateWindow(new Date(this.clock()))}, credentials => {
-          if (this.store.user(user.id)?.pendingPronoteId !== id) throw new Error('SOURCE_CHANGED');
+        const snapshot = await this.worker({mode:'ent',ent:capture,accountPin,uuid:randomUUID(), today: parisDate(new Date(this.clock())), window: dateWindow(new Date(this.clock()))}, credentials => {
+          if (!isCurrent()||this.store.user(user.id)?.pendingPronoteId !== id) throw new Error('SOURCE_CHANGED');
           if(validatePronoteURL(credentials.pronote_url).origin !== url.origin)throw new Error('SOURCE_CHANGED'); this.store.update(user.id, {pendingPronote: this.store.seal(credentials)});
         });
-        if (pronoteBinding(user) !== binding || !user.skolengo || !user.pendingPronote) throw new Error('SOURCE_CHANGED');
+        if (!isCurrent() || this.store.user(user.id)!==user || pronoteBinding(user) !== binding || (!primary && !user.skolengo) || !user.pendingPronote) throw new Error('SOURCE_CHANGED');
         const clean = mergeSnapshot(null, snapshot, this.clock());
+        if(primary&&clean.sections.courses.state==='available')clean.sections.courses.data=stablePronoteCourses(isEntPronote(this.store,user)?user.pronoteSnapshot?.sections?.courses?.data:null,clean.sections.courses.data);
         this.store.update(user.id, {pendingPronoteSnapshot: clean});
         this.audit?.record('pronote.connected', {source: 'sync', userId: user.id, meta: {durationMs: this.clock() - started}});
         const student = user.students?.find(item => item.id === user.studentId);
-        return {candidate: id, identity: {name: clean.identity.name, className: clean.identity.className, school: clean.identity.school}, entStudent: student?.name || user.name, entSchool: user.schoolName, sections: Object.fromEntries(Object.entries(clean.sections).map(([key, value]) => [key, value.state]))};
+        return {primary,candidate: id, identity: {name: clean.identity.name, className: clean.identity.className, school: clean.identity.school}, entStudent: student?.name || user.name, entSchool: user.schoolName, sections: Object.fromEntries(Object.entries(clean.sections).map(([key, value]) => [key, value.state]))};
       } catch (error) {
-        this.store.update(user.id, {pendingPronoteId: null, pendingPronote: null, pendingPronoteSnapshot: null});
+        this.store.update(user.id, {pendingPronoteId: null, pendingPronote: null, pendingPronoteSnapshot: null,pendingEntPrimary:null});
         const code = messages[error.message] ? error.message : 'SOURCE_UNAVAILABLE';
-        this.audit?.record('pronote.failed', {source: 'sync', level: 'warn', userId: user.id, meta: {errorCode: code}});
-        throw new PublicError(messages[code], 502);
+        this.audit?.record('pronote.failed', {source: 'sync', level: 'warn', userId: user.id, meta: {errorCode:code,...(error.phase?{mode:error.phase}:{})}});
+        throw Object.assign(new PublicError(messages[code],502),{code});
       }
     });
   }
   confirm(user, body) {
     if (this.running.has(user.id)) throw new PublicError('Attendez la fin de la connexion Pronote.', 409);
     if (body.confirm !== true || body.candidate !== user.pendingPronoteId || !user.pendingPronote || !user.pendingPronoteSnapshot || user.pendingPronoteBinding !== pronoteBinding(user) || this.clock() - user.pendingPronoteAt > 10 * 60000) throw new PublicError('Cette association a expiré ou l’élève a changé. Recommencez la connexion.', 409);
-    const snapshot = user.pendingPronoteSnapshot;
-    const origin = new URL(this.store.open(user.pendingPronote).pronote_url).origin, normalized = normalizePronoteAssignments(user,snapshot,origin);
-    this.store.update(user.id, {pronote: user.pendingPronote, pronoteConnectionId: randomUUID(), pronoteBinding: pronoteBinding(user), pronoteSnapshot: snapshot, pronoteInstance:origin, pronoteScope:normalized.scopeKey, pronoteAssignments: normalized.assignments, pronoteLastSync: this.clock(), pronoteLastAttempt: this.clock(), pronoteSyncEnabled: true, pronoteNeedsReconnect: false, pronoteError: null, pendingPronoteId: null, pendingPronote: null, pendingPronoteSnapshot: null, personalVersion: this.clock()});
+    const snapshot = user.pendingPronoteSnapshot, primary=user.pendingEntPrimary, credentials=user.pendingPronote;
+    const origin=new URL(this.store.open(credentials).pronote_url).origin;
+    if(primary){
+      const studentId='prn-'+digest(origin+':'+normalizeLabel(snapshot.identity.name)+':'+normalizeLabel(snapshot.identity.school)).slice(0,32),schoolId='prn-school-'+digest(origin).slice(0,24);
+      const school={id:schoolId,name:snapshot.identity.school||primary.providerLabel,homePageUrl:primary.portalURL,emsCode:primary.providerId};
+      const changed=user.studentId&&(user.studentId!==studentId||user.schoolName!==school.name);
+      const personalLink=!user.studentId?Object.fromEntries(['courseNotes','flashcards','cardReviews','focusHistory'].filter(k=>Array.isArray(user[k])).map(k=>[k,user[k].map(row=>row.studentId==null?{...row,studentId}:row)])):{};
+      this.store.update(user.id,{...(changed?clearEntData():{}),...personalLink,entConnectionKind:'pronote',skolengo:this.store.seal({provider:'ent-pronote',school}),skolengoConnectionId:randomUUID(),studentId,students:[{id:studentId,name:snapshot.identity.name,className:snapshot.identity.className}],schoolName:school.name,skolengoError:null});
+    }
+    const normalized = normalizePronoteAssignments(user,snapshot,origin);
+    this.store.update(user.id, {pronote:credentials,pronoteConnectionId:randomUUID(),pronoteBinding:pronoteBinding(user),pronoteSnapshot:snapshot,pronoteInstance:origin,pronoteScope:normalized.scopeKey,pronoteAssignments:normalized.assignments,pronoteLastSync:this.clock(),pronoteLastAttempt:this.clock(),pronoteSyncEnabled:true,pronoteNeedsReconnect:false,pronoteError:null,pendingPronoteId:null,pendingPronote:null,pendingPronoteSnapshot:null,pendingEntPrimary:null,personalVersion:this.clock()});
     if (user.cachedICS) rebuildCalendar(this.store, user.id, this.clock());
     this.audit?.record('pronote.confirmed', {source: 'sync', userId: user.id});
     return this.publicSettings(user);
@@ -160,19 +175,21 @@ export class PronoteService {
         });
         if (!linkedPronote(user) || user.pronoteConnectionId !== id) throw new Error('SOURCE_CHANGED');
         if (normalizeLabel(incoming.identity?.name) !== normalizeLabel(user.pronoteSnapshot?.identity.name) || incoming.identity?.school && user.pronoteSnapshot?.identity.school && normalizeLabel(incoming.identity.school) !== normalizeLabel(user.pronoteSnapshot.identity.school)) throw new Error('SOURCE_CHANGED');
-        const snapshot = mergeSnapshot(user.pronoteSnapshot, incoming, now), normalized = normalizePronoteAssignments(user,snapshot,origin), work = normalized.assignments;
-        this.store.update(user.id, {...activityPatch(user, assignmentChanges(user.pronoteAssignments, work, now, 'Pronote'), now), pronoteAssignments: work, pronoteScope:normalized.scopeKey, pronoteInstance:origin, pronoteSnapshot: snapshot, pronoteLastAttempt: now, pronoteLastSync: now, pronoteError: null, pronoteNeedsReconnect: false, personalVersion: now});
+        const snapshot = mergeSnapshot(user.pronoteSnapshot, incoming, now);
+        if(isEntPronote(this.store,user)&&snapshot.sections.courses.state==='available')snapshot.sections.courses.data=stablePronoteCourses(user.pronoteSnapshot?.sections?.courses?.data,snapshot.sections.courses.data);
+        const normalized = normalizePronoteAssignments(user,snapshot,origin), work = normalized.assignments;
+        this.store.update(user.id, {...activityPatch(user, assignmentChanges(user.pronoteAssignments, work, now, 'Pronote'), now), pronoteAssignments: work, pronoteScope:normalized.scopeKey, pronoteInstance:origin, pronoteSnapshot: snapshot, pronoteLastAttempt: now, pronoteLastSync: now, pronoteError: null, pronoteNeedsReconnect:false,...(isEntPronote(this.store,user)?{skolengoError:null}:{}),personalVersion:now});
         if (user.cachedICS) rebuildCalendar(this.store, user.id, now);
         this.audit?.record('pronote.synced', {source: 'sync', userId: user.id, meta: {durationMs: this.clock() - now, count: work.length}});
         return this.publicSettings(user);
       } catch (error) {
         const code = messages[error.message] ? error.message : 'SOURCE_UNAVAILABLE';
-        this.store.update(user.id, {pronoteLastAttempt: now, pronoteError: messages[code], pronoteNeedsReconnect: ['AUTH_EXPIRED', 'MFA_REQUIRED', 'SOURCE_CHANGED'].includes(code)});
-        this.audit?.record('pronote.failed', {source: 'sync', level: 'warn', userId: user.id, meta: {errorCode: code}}); throw new PublicError(messages[code], 502);
+        this.store.update(user.id, {pronoteLastAttempt: now, pronoteError: messages[code], pronoteNeedsReconnect:['AUTH_EXPIRED','MFA_REQUIRED','ENT_AUTH_REQUIRED','SOURCE_CHANGED'].includes(code),...(isEntPronote(this.store,user)&&['AUTH_EXPIRED','MFA_REQUIRED','ENT_AUTH_REQUIRED','SOURCE_CHANGED'].includes(code)?{skolengoError:messages[code]}:{})});
+        this.audit?.record('pronote.failed', {source: 'sync', level: 'warn', userId: user.id, meta: {errorCode:code,...(error.phase?{mode:error.phase}:{})}}); throw Object.assign(new PublicError(messages[code],502),{code});
       }
     });
   }
-  async tick() { for(const user of this.store.state.users) if(user.pendingPronoteId && this.clock()-user.pendingPronoteAt>10*60000 && !this.running.has(user.id))this.store.update(user.id,{pendingPronote:null,pendingPronoteId:null,pendingPronoteSnapshot:null}); if(!automationAllowed(this.store.state.settings,'pronote',this.clock()))return; for (const user of this.store.state.users) if (automationAllowed(this.store.state.settings,'pronote',this.clock()) && accountActive(user) && linkedPronote(user) && user.pronoteSyncEnabled !== false && !user.pronoteNeedsReconnect && !this.running.has(user.id) && this.clock() - (user.pronoteLastAttempt || 0) >= 10 * 60000) await this.sync(user).catch(() => {}); }
+  async tick() { for(const user of this.store.state.users) if(user.pendingPronoteId && this.clock()-user.pendingPronoteAt>10*60000 && !this.running.has(user.id))this.store.update(user.id,{pendingPronote:null,pendingPronoteId:null,pendingPronoteSnapshot:null,pendingEntPrimary:null}); if(!automationAllowed(this.store.state.settings,'pronote',this.clock()))return; for (const user of this.store.state.users) if (automationAllowed(this.store.state.settings,'pronote',this.clock()) && accountActive(user) && linkedPronote(user) && user.pronoteSyncEnabled !== false && !user.pronoteNeedsReconnect && !this.running.has(user.id) && this.clock() - (user.pronoteLastAttempt || 0) >= 10 * 60000) await this.sync(user).catch(() => {}); }
   canServe(user, section) { return linkedPronote(user) && user.pronoteSnapshot?.sections?.[section]?.state === 'available'; }
   section(user, section, query = {}) {
     if (!this.canServe(user, section)) throw new PublicError('Cette rubrique n’est pas fournie par votre connexion Pronote.', 409);
@@ -202,21 +219,22 @@ export class PronoteService {
       if (exact && (normalizeLabel(exact.location) !== normalizeLabel(item.location) || exact.cancelled !== item.cancelled)) conflicts.push({date: item.date, title: item.title, ent: {start: exact.start, location: exact.location, cancelled: exact.cancelled}, pronote: {start: item.start, location: item.location, cancelled: item.cancelled}});
       else if (!exact && matches.length === 1) conflicts.push({date: item.date, title: item.title, ent: {start: matches[0].start, location: matches[0].location, cancelled: matches[0].cancelled}, pronote: {start: item.start, location: item.location, cancelled: item.cancelled}, uncertainMatch: true});
     }
-    return {settings: this.publicSettings(user), courses: courses.sort((a, b) => a.start.localeCompare(b.start)), conflicts: conflicts.slice(0, 50), window: user.pronoteSnapshot?.window, agendaSource: 'ENT', viewStart: start, viewEnd: end, publishedCourses: allRows.length};
+    return {settings: this.publicSettings(user), courses: courses.sort((a, b) => a.start.localeCompare(b.start)), conflicts: conflicts.slice(0, 50), window: user.pronoteSnapshot?.window, agendaSource:isEntPronote(this.store,user)?'Pronote':'ENT', viewStart: start, viewEnd: end, publishedCourses: allRows.length};
   }
 }
 export function installPronoteRoutes(router, {auth, store, audit, clock, rateLimit, ...options}) {
   const service = new PronoteService(store, {audit, clock, ...options});
+  store.entPronoteSync=user=>service.clock()-(user.pronoteLastSync||0)>2*60000?service.sync(user):Promise.resolve(service.publicSettings(user));
   router.get('/api/pronote', auth, (req, res) => res.json(service.publicSettings(req.user)));
   router.get('/api/pronote/data', auth, (req, res) => res.json(service.data(req.user, req.query)));
   router.post('/api/pronote/connect', auth, async (req, res) => { rateLimit(req, 'pronote-connect:' + req.user.id, 6, 15 * 60000); res.json(await service.connect(req.user, req.body)); });
-  router.post('/api/pronote/cancel', auth, (req, res) => { if(service.running.has(req.user.id)) throw new PublicError('Attendez la fin de la connexion Pronote.',409); store.update(req.user.id,{pendingPronote:null,pendingPronoteId:null,pendingPronoteSnapshot:null}); res.json({ok:true}); });
+  router.post('/api/pronote/cancel', auth, (req, res) => { if(service.running.has(req.user.id)) throw new PublicError('Attendez la fin de la connexion Pronote.',409); store.update(req.user.id,{pendingPronote:null,pendingPronoteId:null,pendingPronoteSnapshot:null,pendingEntPrimary:null}); res.json({ok:true}); });
   router.post('/api/pronote/confirm', auth, (req, res) => res.json({settings: service.confirm(req.user, req.body)}));
   router.post('/api/pronote/sync', auth, async (req, res) => { rateLimit(req, 'pronote-sync:' + req.user.id, 12, 3600000); res.json(await service.sync(req.user)); });
-  router.post('/api/pronote/settings', auth, (req, res) => { if (typeof req.body.enabled !== 'boolean') throw new PublicError('Choisissez l’état de la synchronisation Pronote.'); store.update(req.user.id, {pronoteSyncEnabled: req.body.enabled}); res.json(service.publicSettings(req.user)); });
+  router.post('/api/pronote/settings', auth, (req, res) => { if (typeof req.body.enabled !== 'boolean') throw new PublicError('Choisissez l’état de la synchronisation Pronote.'); store.update(req.user.id, {pronoteSyncEnabled:req.body.enabled,...(isEntPronote(store,req.user)?{enabled:req.body.enabled&&!!req.user.feedKey}:{})}); res.json(service.publicSettings(req.user)); });
   router.post('/api/pronote/disconnect', auth, (req, res) => {
     if (service.running.has(req.user.id)) throw new PublicError('Attendez la fin de la consultation Pronote.', 409);
-    store.update(req.user.id, {pronote: null, pronoteConnectionId: null, pronoteBinding: null, pronoteSnapshot: null, pronoteAssignments: [], pronoteError: null, pendingPronote: null, pendingPronoteId: null, pendingPronoteSnapshot: null, personalVersion: clock()});
+    store.update(req.user.id, {...(isEntPronote(store,req.user)?{...clearEntData(),skolengo:null,schoolName:null,students:[],studentId:null,skolengoConnectionId:null}:{}),pronote: null, pronoteConnectionId: null, pronoteBinding: null, pronoteSnapshot: null, pronoteAssignments: [], pronoteError: null, pendingPronote: null, pendingPronoteId: null, pendingPronoteSnapshot: null,pendingEntPrimary:null,personalVersion: clock()});
     if (req.user.cachedICS) rebuildCalendar(store, req.user.id, clock()); audit?.record('pronote.disconnected', {source: 'security', userId: req.user.id}); res.json({ok: true});
   });
   return service;

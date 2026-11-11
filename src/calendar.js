@@ -3,6 +3,7 @@ import { digest } from './store.js';
 import { subjectFor, styledTitle } from './subjects.js';
 import { taskEvents } from './work.js';
 import { renderCalendar } from './ical.js';
+import {travelCalendarEvents} from './travel-calendar.js';
 
 export const CALENDAR_FORMAT_VERSION = 2;
 
@@ -11,7 +12,7 @@ export function courseHash(event) {
   return digest(JSON.stringify({ id, date, title, rawTitle, subject, kind, location, description, start, end, cancelled }));
 }
 export function combinedEvents(user, filter = {}) {
-  return [...Object.values(user.calendarEvents || {}), ...Object.values(user.taskCalendar || {}), ...schoolEvents(user)].filter(e => (!filter.type || filter.type === 'all' || (e.kind || 'course') === filter.type) && (!filter.subject || e.subject?.key === filter.subject));
+  return [...Object.values(user.calendarEvents || {}), ...Object.values(user.taskCalendar || {}), ...schoolEvents(user),...travelCalendarEvents(user)].filter(e => (!filter.type || filter.type === 'all' || (e.kind || 'course') === filter.type) && (!filter.subject || e.subject?.key === filter.subject));
 }
 export function rebuildCalendar(store, id, now = Date.now()) {
   const user = store.user(id), courses = structuredClone(user.calendarEvents || {});

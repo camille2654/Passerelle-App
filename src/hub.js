@@ -1,35 +1,24 @@
 import {randomUUID} from 'node:crypto';
 import {PublicError} from './sync.js';
-import {normalizeLabel, subjectFor} from './subjects.js';
+import {subjectFor} from './subjects.js';
 import {parisDate, userWork} from './work.js';
 import {activityState, changeView, acknowledgeVisit, studentScope} from './activity.js';
 import {weeklySummary} from './insights.js';
+import {searchDiscovery, SEARCH_KINDS} from './discovery.js';
 
 const validDate = (input, now) => {
   const date = String(input || parisDate(new Date(now)));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date + 'T12:00:00Z').toISOString().slice(0, 10) !== date || Math.abs(Date.parse(date) - now) > 550 * 86400000) throw new PublicError('Choisissez une date valide dans l’année scolaire.');
   return date;
 };
-export function searchOwn(user, query) {
-  const q = String(query || '').trim().slice(0, 100), words = normalizeLabel(q).split(/\s+/).filter(Boolean);
-  if (q.length < 2) return {query: q, items: [], total: 0};
-  const scope = studentScope(user), rows = [];
-  for (const item of Object.values(user.calendarEvents || {})) rows.push({id: item.id, kind: 'course', title: item.title, text: [item.location, item.description].filter(Boolean).join(' · '), date: item.date, subject: item.subject?.label || item.rawTitle, cancelled: item.cancelled, target: {type: 'course', date: item.date}});
-  for (const item of userWork(user)) rows.push({id: item.id, kind: 'work', title: item.title, text: item.details, date: item.due, subject: item.subjectLabel, done: item.done, target: {type: 'work', id: item.id}});
-  for (const item of user.courseNotes || []) if (item.studentId === scope) rows.push({id: item.id, kind: 'note', title: item.subjectLabel, text: item.text, subject: item.subjectLabel, target: {type: 'note', id: item.id}});
-  for (const item of user.flashcards || []) if (item.studentId === scope) rows.push({id: item.id, kind: 'card', title: item.question, text: item.answer, subject: item.subjectLabel, target: {type: 'card', id: item.id}});
-  if (user.searchNewsScope === scope) for (const item of user.searchNews || []) rows.push({id: item.id, kind: 'news', title: item.title, text: item.text, date: item.date?.slice(0, 10), target: {type: 'news', id: item.id}});
-  const matches = rows.filter(item => words.every(word => normalizeLabel(item.title + ' ' + (item.text || '') + ' ' + (item.subject || '')).includes(word)));
-  matches.sort((a, b) => Number(normalizeLabel(b.title).includes(normalizeLabel(q))) - Number(normalizeLabel(a.title).includes(normalizeLabel(q))) || (b.date || '').localeCompare(a.date || ''));
-  return {query: q, items: matches.slice(0, 60).map(item => ({...item, text: (item.text || '').slice(0, 600)})), total: matches.length};
-}
+export function searchOwn(user, query) { return searchDiscovery(user,query); }
 export function cardsView(user, now) {
   const cards = (user.flashcards || []).filter(item => item.studentId === studentScope(user)).map(item => ({...item, subject: subjectFor({label: item.subjectLabel}, undefined, user.subjectStyles)})).sort((a, b) => a.dueAt - b.dueAt || a.createdAt - b.createdAt);
   return {cards, due: cards.filter(item => item.dueAt <= now).length, serverNow: now};
 }
 const redact = input => String(input || '').replace(/https?:\/\/[^\s<>]+/gi, '[lien masqué]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[adresse masquée]').replace(/\b(?:password|mot de passe|jeton|token|secret)\s*[:=]\s*[^\s,;]+/gi, '[secret masqué]').replace(/[a-zA-Z0-9_-]{40,}/g, '[secret masqué]');
 const statusValues = new Set(['open', 'in_progress', 'resolved']);
-export function installHubRoutes(router, {auth, admin, store, school, rateLimit, audit, clock, version}) {
+export function installHubRoutes(router, {auth, admin, store, school, rateLimit, audit, clock, version, discovery}) {
   const touch = (user, patch) => store.update(user.id, {...patch, personalVersion: clock()});
   router.get('/api/activity', auth, (req, res) => res.json(changeView(store, req.user, clock())));
   router.post('/api/activity/visit', auth, (req, res) => {
@@ -39,9 +28,11 @@ export function installHubRoutes(router, {auth, admin, store, school, rateLimit,
   });
   router.post('/api/search', auth, async (req, res) => {
     rateLimit(req, 'search:' + req.user.id, 120, 15 * 60000);
+    const kind = req.body.kind || 'all';
+    if (kind !== 'all' && !SEARCH_KINDS.includes(kind)) throw new PublicError('Filtre de recherche invalide.');
     let warning = null;
     if (req.body.refreshNews === true && req.user.skolengo) try { await school.load(req.user, 'news', {}); } catch { warning = 'Les actualités n’ont pas pu être actualisées. Les informations déjà reçues restent recherchables.'; }
-    res.json({...searchOwn(req.user, req.body.q), warning, newsIndexed: req.user.searchNewsScope === studentScope(req.user) && !!req.user.searchNewsInitialized});
+    res.json({...(discovery ? discovery.search(req.user,req.body.q,{kind}) : searchDiscovery(req.user,req.body.q,{kind})), warning, newsIndexed: req.user.searchNewsScope === studentScope(req.user) && !!req.user.searchNewsInitialized});
   });
   router.post('/api/search/news/open', auth, async (req, res) => {
     rateLimit(req, 'search-news:' + req.user.id, 60, 15 * 60000);

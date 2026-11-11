@@ -1,0 +1,21 @@
+.ent-coverage{font-size:.82rem;color:var(--muted);margin:0 0 12px}
+.ent-school-form{display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.ent-provider-field{grid-column:1/-1;font-size:.83rem;display:grid;gap:6px}
+.ent-provider-field .muted{display:contents}
+.ent-school-form input,.ent-school-form select{min-width:0;width:100%}
+.ent-other{border-top:1px solid var(--line,#ddd);margin-top:16px;padding-top:14px}
+.ent-other summary{cursor:pointer;font-size:.9rem;font-weight:650;line-height:1.5;padding:5px 0}
+.ent-other p{font-size:.86rem;line-height:1.6}
+.ent-other form{display:grid;gap:12px;margin:16px 0}
+.ent-other label{display:grid;gap:7px;font-size:.86rem}
+.ent-other input{width:100%;min-width:0}
+.pronote-setup form{display:grid;gap:14px}
+.pronote-setup form details{margin:0}
+.pronote-setup form details label{display:grid;gap:8px;padding-top:12px}
+@media(max-width:380px){.ent-school-form{grid-template-columns:1fr}.ent-school-form button{width:100%}}
+
+#ent-dialog{max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain}#ent-dialog .dialog-heading{position:sticky;top:-25px;z-index:2;background:var(--paper,#fff);padding:8px 0}#ent-dialog .remote-tools[hidden],#ent-dialog #ent-frame[hidden]{display:none!important}#ent-dialog.ent-processing .remote{min-height:140px}#ent-close-feedback{margin:16px 0 8px}@media(max-width:780px){#ent-dialog .dialog-heading{top:-18px}}
+
+#ent-dialog.ent-error .remote{display:none}
+
+#ent-dialog.ent-error #ent-message{color:var(--ink);font-size:.95rem;line-height:1.6}

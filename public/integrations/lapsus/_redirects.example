@@ -1,0 +1,2 @@
+# Merge this rule ABOVE an existing SPA fallback; do not replace Lapsus routing.
+/passerelle/callback /passerelle/callback.html 200

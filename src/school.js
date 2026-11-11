@@ -122,9 +122,9 @@ export class SchoolService {
     } catch (error) {
       if (error instanceof PublicError) throw error;
       const status = Number(error.status || error.response?.status);
-      const code = status === 401 || ['invalid_grant', 'invalid_token'].includes(error.error) ? 'ENT_AUTH_EXPIRED' : [403, 404, 405].includes(status) || error.message === 'UNSUPPORTED' ? 'ENT_SERVICE_UNAVAILABLE' : error.message === 'SOURCE_CHANGED' ? 'ENT_SOURCE_CHANGED' : 'ENT_UNAVAILABLE';
+      const code = status === 401 || ['invalid_grant', 'invalid_token'].includes(error.error) ? 'ENT_AUTH_EXPIRED' : unsupportedSource(error) ? 'ENT_SERVICE_UNAVAILABLE' : error.message === 'SOURCE_CHANGED' ? 'ENT_SOURCE_CHANGED' : 'ENT_UNAVAILABLE';
       this.audit?.record('school.failed', { source: 'sync', level: 'warn', userId: user.id, meta: { mode, durationMs: this.clock() - started, errorCode: code } });
-      throw new PublicError(code === 'ENT_AUTH_EXPIRED' ? 'La connexion ENT a expiré. Reconnectez Skolengo dans Mon abonnement ICS.' : code === 'ENT_SOURCE_CHANGED' ? 'La connexion ou l’élève a changé. Actualisez cette rubrique.' : code === 'ENT_SERVICE_UNAVAILABLE' ? 'Cette rubrique n’est pas accessible avec votre compte dans cet établissement.' : 'L’ENT ne répond pas pour cette rubrique. Réessayez dans un instant.', code === 'ENT_AUTH_EXPIRED' ? 409 : 503);
+      const failure = new PublicError(code === 'ENT_AUTH_EXPIRED' ? 'La connexion ENT a expiré. Reconnectez Skolengo dans Mon abonnement ICS.' : code === 'ENT_SOURCE_CHANGED' ? 'La connexion ou l’élève a changé. Actualisez cette rubrique.' : code === 'ENT_SERVICE_UNAVAILABLE' ? 'Cette rubrique n’est pas accessible avec votre compte dans cet établissement.' : 'L’ENT ne répond pas pour cette rubrique. Réessayez dans un instant.', code === 'ENT_AUTH_EXPIRED' ? 409 : 503); failure.code=code; throw failure;
     } finally { const count = this.running.get(user.id) - 1; if (count) this.running.set(user.id, count); else this.running.delete(user.id); }
   }
   async load(user, section, query = {}) {
@@ -168,6 +168,7 @@ export class SchoolService {
       }
       if (section === 'news') {
         const rows = list(await call('getSchoolInfos', { page: { limit: LIMIT, offset } }));
+        if(this.store.user(user.id)!==user||this.context(user).scope!==context.scope)throw new Error('SOURCE_CHANGED');
         this.store.update(user.id, newsPatch(user, rows.map(value => ({id: value.id, title: text(value.title), text: plainText(value.shortContent || value.content).slice(0, 2000), date: text(value.publicationDateTime, 40), author: sender(value.author)})), this.clock()));
         data = { items: rows.map(value => ({ ref: this.reference(context, 'news', value.id), title: text(value.title), date: text(value.publicationDateTime, 40), author: sender(value.author), preview: plainText(value.shortContent || value.content).slice(0, 350) })), hasMore: rows.length === LIMIT };
       }

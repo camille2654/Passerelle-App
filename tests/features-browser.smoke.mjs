@@ -14,10 +14,11 @@ const source = () => [{ date: tomorrow, lessons: [{ id: 'math', title: 'Mathéma
   { id: 'homework', title: 'Exercices de géométrie', html: '<p>Terminer les exercices 1 et 2.</p>', dueDateTime: tomorrow + 'T09:00:00Z', subject: { label: 'Mathématiques' }, done: false },
   { id: 'exam', title: 'Contrôle de vocabulaire', html: '<p>Revoir les mots de la semaine.</p>', dueDateTime: tomorrow + 'T09:00:00Z', subject: { label: 'Anglais' }, done: false }
 ] }];
-const { app, store, browsers } = createApp({ dataDir: dir, baseURL,
+const runtime = createApp({ dataDir: dir, baseURL,
   syncOptions: { clientFactory: async () => ({ getAgenda: async (id, start, end) => source().filter(d => d.date >= start && d.date <= end) }) },
   mailOptions: { transportFactory: () => ({ verify: async () => {}, close: () => {}, sendMail: async message => { sent.push(message); return { accepted: [message.to] }; } }) }
 });
+const {app,store,browsers}=runtime;
 const server = app.listen(8021, '127.0.0.1'); await new Promise(r => server.once('listening', r));
 let browser, page;
 try {
@@ -32,9 +33,12 @@ try {
   await page.getByLabel('Mot de passe du portail').fill('temporary-test-password');
   await page.getByRole('button', { name: 'Créer mon espace' }).click();
   await page.getByRole('heading', { name: /^Bonjour /, exact: true, level: 1 }).waitFor();
+  await page.getByRole('dialog',{name:'Bienvenue sur Passerelle',exact:true}).getByRole('button',{name:'Plus tard',exact:true}).click();
   const user = store.state.users[0];
   store.update(user.id, { skolengo: store.seal({ fixture: true }), studentId: 'test-student', schoolName: 'Établissement de contrôle', students: [{ id: 'test-student', name: 'Camille' }] });
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button',{name:'Fermer les nouveautés',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('#release-sheet')?.open);
   await openArea(page,'Mon abonnement ICS');
   await page.getByRole('button', { name: 'Créer mon lien ICS' }).click();
   await page.locator('#feed-url').waitFor();
@@ -104,4 +108,4 @@ try {
   await page?.screenshot({ path: 'test-results/features-failure.png', fullPage: false, animations: 'disabled', timeout: 60000 }).catch(() => {});
   console.error(JSON.stringify({ pageErrors: errors, summaries: await page?.locator('summary').allTextContents().catch(() => []), toast: await page?.locator('#toast').textContent().catch(() => '') }));
   throw error;
-} finally { await browsers.close(); await browser?.close(); await new Promise(r => server.close(r)); fs.rmSync(dir, { recursive: true, force: true }); }
+} finally { for(const name of ['managedENT','partners','control','push','passkeys','cloud','incoming','personalCalendars','travel','smartTravel','personalMail','eventSuggestions'])runtime[name]?.close();await browsers.close(); await browser?.close(); server.closeAllConnections();await new Promise(r => server.close(r)); fs.rmSync(dir, { recursive: true, force: true }); }

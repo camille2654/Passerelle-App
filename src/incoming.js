@@ -1,5 +1,6 @@
 import {MAX_DOCUMENT_BYTES,MAX_SHARE_MEMORY_BYTES} from './upload-limits.js';
 import multer from 'multer';
+import express from 'express';
 import {randomUUID} from 'node:crypto';
 import {random,digest} from './store.js';
 import {PublicError} from './sync.js';
@@ -18,8 +19,22 @@ function multipartError(error){
  if(error.code==='LIMIT_UNEXPECTED_FILE'||error.code==='LIMIT_FIELD_VALUE'&&error.field==='file')return shareError(fileField,400,'SHARE_FILE_FIELD');
  if(error.code==='LIMIT_FIELD_VALUE')return shareError('Le texte partagé est trop long. Envoyez-le dans un fichier de 30 Mo maximum.',400,'SHARE_TEXT_TOO_LONG');
  if(['LIMIT_FIELD_COUNT','LIMIT_PART_COUNT','LIMIT_FIELD_KEY'].includes(error.code))return shareError('Le formulaire contient trop de champs. Utilisez un seul champ « file » de type Fichier.',400,'SHARE_TOO_MANY_FIELDS');
- return shareError('Le formulaire envoyé est incomplet ou invalide. Renvoyez le document depuis son application.',400,'SHARE_MULTIPART_INVALID');
+ return shareError('Le formulaire envoyé est incomplet ou invalide. Dans Raccourcis, choisissez Fichier comme corps de la requête avec la variable Entrée du raccourci, puis renvoyez le document.',400,'SHARE_MULTIPART_INVALID');
 }
+const rawNames=new Map([['application/octet-stream','document.bin'],['application/pdf','document.pdf'],['text/plain','texte.txt'],['application/zip','document.zip'],['application/msword','document.doc'],['application/vnd.ms-excel','document.xls'],['application/vnd.ms-powerpoint','document.ppt'],['application/vnd.openxmlformats-officedocument.wordprocessingml.document','document.docx'],['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','document.xlsx'],['application/vnd.openxmlformats-officedocument.presentationml.presentation','document.pptx']]);
+function rawFileName(req,bytes,type){
+ const supplied=req.get('x-file-name');if(supplied!==undefined){if(supplied.length>600)throw shareError('Le nom du fichier est trop long.',400,'SHARE_FILE_NAME');let decoded;try{decoded=decodeURIComponent(supplied);}catch{throw shareError('Le nom du fichier est invalide.',400,'SHARE_FILE_NAME');}if(!decoded.trim()||/[\u0000-\u001f\u007f]/.test(decoded))throw shareError('Le nom du fichier est invalide.',400,'SHARE_FILE_NAME');return fileName(decoded);}
+ const prefix=bytes.subarray(0,32);
+ if(prefix.subarray(0,5).toString()==='%PDF-')return 'document.pdf';
+ if(prefix.length>=3&&prefix[0]===255&&prefix[1]===216&&prefix[2]===255)return 'photo.jpg';
+ if(prefix.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'photo.png';
+ if(['GIF87a','GIF89a'].includes(prefix.subarray(0,6).toString()))return 'photo.gif';
+ if(prefix.subarray(0,4).toString()==='RIFF'&&prefix.subarray(8,12).toString()==='WEBP')return 'photo.webp';
+ if(prefix.subarray(4,8).toString()==='ftyp'){const brand=prefix.subarray(8,12).toString();if(['heic','heix','hevc','hevx','mif1','msf1'].includes(brand))return 'photo.heic';if(['avif','avis'].includes(brand))return 'photo.avif';}
+ const images={'image/jpeg':'photo.jpg','image/png':'photo.png','image/webp':'photo.webp','image/gif':'photo.gif','image/heic':'photo.heic','image/heif':'photo.heif','image/avif':'photo.avif','image/tiff':'photo.tiff'};
+ return images[type]||rawNames.get(type)||'document.bin';
+}
+function multipartCategory(error){const message=String(error.message||'').toLowerCase();return message.includes('boundary')?'boundary':message.includes('unexpected end')?'truncated':message.includes('header')?'header':'other';}
 const active=(store,req)=>accountActive(req.user)&&store.user(req.user.id)===req.user&&store.state.sessions.some(s=>s.hash===req.session?.hash&&s.userId===req.user.id&&s.expires>Date.now());
 export class IncomingService {
  constructor(store,favorites,resources,{clock=()=>Date.now(),baseURL,audit=null}={}){Object.assign(this,{store,favorites,resources,clock,baseURL,audit});this.drafts=new Map();this.closed=false;this.timer=setInterval(()=>this.prune(),60000);this.timer.unref();}
@@ -81,8 +96,21 @@ export function installIncomingRoutes(router,{store,favorites,resources,auth,rat
  let uploads=0;
  const reserve=(req,res,next)=>{if(uploads>=1)return next(new PublicError('Un document est déjà en cours d’envoi. Réessayez dans un instant.',429));if(Number(req.get('content-length'))>MAX_FILE+64000)return next(shareError('Choisissez un document de 30 Mo maximum.',413,'SHARE_FILE_TOO_LARGE'));uploads++;let released=false;const release=()=>{if(!released){released=true;uploads--;}};res.once('finish',release);res.once('close',release);req.once('aborted',release);next();};
  const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:MAX_FILE+1,files:1,fields:3,fieldSize:12000,parts:4}}).single('file');
- router.post('/share',reserve,(req,res,next)=>{try{rateLimit(req,'incoming-share:'+(req.user?.id||'public'),req.user?30:60,900000);if(!req.is('multipart/form-data'))throw new PublicError('Envoyez le partage au format formulaire avec fichier.',415);upload(req,res,error=>{if(!error)return next();const failure=multipartError(error);audit?.record('incoming.failed',{source:'personal',level:'warn',meta:{route:'/share',status:failure.status,errorCode:failure.code}});next(failure);});}catch(error){next(error);}},(req,res)=>{
-  if(Object.hasOwn(req.body||{},'file'))throw shareError('Le champ « file » est envoyé comme du texte. Recréez-le avec le type Fichier et sélectionnez la variable « Entrée du raccourci ».',400,'SHARE_FILE_FIELD');
+ const raw=express.raw({type:()=>true,limit:MAX_FILE});
+ const receive=(req,res,next)=>{
+  try{
+   rateLimit(req,'incoming-share:'+(req.user?.id||'public'),req.user?30:60,900000);
+   if(req.is('multipart/form-data'))return upload(req,res,error=>{if(!error)return next();const failure=multipartError(error);audit?.record('incoming.failed',{source:'personal',level:'warn',meta:{route:'/share',status:failure.status,errorCode:failure.code,mode:multipartCategory(error)}});next(failure);});
+   const type=String(req.get('content-type')||'').split(';')[0].trim().toLowerCase();
+   if(type&&!/^image\/[a-z0-9.+-]+$/.test(type)&&!rawNames.has(type))throw shareError('Ce format d’envoi n’est pas pris en charge. Dans Raccourcis, choisissez Fichier comme corps de la requête avec Entrée du raccourci.',415,'SHARE_FILE_TYPE');
+   raw(req,res,error=>{
+    if(error)return next(shareError(error.type==='entity.too.large'?'Choisissez un document de 30 Mo maximum.':'L’envoi du fichier a été interrompu. Réessayez depuis son application.',error.type==='entity.too.large'?413:400,error.type==='entity.too.large'?'SHARE_FILE_TOO_LARGE':'SHARE_FILE_INCOMPLETE'));
+    try{const bytes=req.body;if(!Buffer.isBuffer(bytes)||!bytes.length)throw shareError('Aucun fichier reçu. Choisissez Entrée du raccourci comme fichier à envoyer.',400,'SHARE_EMPTY_FILE');req.file={buffer:bytes,originalname:rawFileName(req,bytes,type)};req.body={};next();}catch(failure){next(failure);}
+   });
+  }catch(error){next(error);}
+ };
+ router.post('/share',reserve,receive,(req,res)=>{
+  if(Object.hasOwn(req.body||{},'file'))throw shareError('Le champ « file » est envoyé comme du texte. Dans Raccourcis, choisissez Fichier comme corps de la requête avec la variable Entrée du raccourci.',400,'SHARE_FILE_FIELD');
   if(Object.keys(req.body||{}).some(key=>!['title','text','url'].includes(key))||Object.values(req.body||{}).some(value=>typeof value!=='string'))throw new PublicError('Le partage est invalide.');
   const result=incoming.create({...req.body,file:req.file});res.set('Referrer-Policy','no-referrer');if(req.get('accept')?.includes('application/json'))return res.json(result);res.redirect(303,result.openURL);
  });

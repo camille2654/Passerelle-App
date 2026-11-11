@@ -1,0 +1,110 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright';
+import {controlFixture} from './control-fixture.js';
+import {parisDate,shiftDate} from '../src/work.js';
+import {subjectFor} from '../src/subjects.js';
+const f=await controlFixture({port:8021,baseURL:'http://127.0.0.1:8021/agenda'}),errors=[];
+const today=parisDate(new Date()),weekday=(new Date(today+'T12:00:00Z').getUTCDay()+6)%7,monday=shiftDate(today,-weekday),tuesday=shiftDate(monday,1),thursday=shiftDate(monday,3),u=f.store.user('camille');
+const iso=(date,clock)=>date+'T'+clock+':00+01:00';
+const lessons=[['math','Mathématiques','08:00','09:00','B204'],['eng','Anglais','09:00','10:00','B103'],['fr','Français','10:15','11:15','A12'],['sci','Sciences','13:00','14:30','Laboratoire'],['geo','Histoire-géographie','15:00','16:00','C105']];
+u.calendarEvents={};for(let index=0;index<5;index++){const date=shiftDate(monday,index);for(const [id,title,start,end,location]of lessons.slice(0,index===2?3:5)){const key=id+'-'+index;u.calendarEvents[key]={id:key,title,rawTitle:title,date,start:iso(date,start),end:iso(date,end),location,subject:subjectFor({label:title}),created:Date.now(),modified:Date.now(),sequence:0,cancelled:index===3&&id==='eng'};}}
+for(const key of Object.keys(u.calendarEvents))if(u.calendarEvents[key].date===tuesday)delete u.calendarEvents[key];
+for(const [id,label,start,end,location] of [['math','MATHEMATIQUES','08:15','10:05','P1'],['history1','HISTOIRE-GEOGRAPHIE','10:20','11:15','P7'],['history2','HISTOIRE-GEOGRAPHIE','11:15','12:10','P7'],['french','FRANCAIS','13:05','14:55','P10'],['economics','SC. ECONO.& SOCIALES','15:10','17:00','108']]){const subject=subjectFor({label});u.calendarEvents[id+'-photo']={id:id+'-photo',title:subject.emoji+' '+label,rawTitle:label,date:tuesday,start:iso(tuesday,start),end:iso(tuesday,end),location,subject};}
+u.calendarEvents.early={id:'early',title:'Cours annulé tôt',rawTitle:'Cours annulé tôt',date:thursday,start:iso(thursday,'07:00'),end:iso(thursday,'07:30'),subject:subjectFor({label:'Autre matière'}),cancelled:true};
+for(const event of Object.values(u.calendarEvents)){event.created??=Date.now();event.modified??=Date.now();event.sequence??=0;}
+u.activityScope=u.studentId;u.activitySeq=3;u.lastAgendaVisit={cursor:1,at:Date.now()-3600000};u.activityLog=[{id:'room-change',seq:2,eventId:'math-3',entity:'course',type:'updated',title:'Mathématiques',date:thursday,at:Date.now(),before:{location:'B100',start:iso(thursday,'08:00'),end:iso(thursday,'09:00')},after:{location:'B204',start:iso(thursday,'08:00'),end:iso(thursday,'09:00')}},{id:'early-cancelled',seq:3,eventId:'early',entity:'course',type:'cancelled',title:'Cours annulé tôt',date:thursday,at:Date.now(),before:{start:iso(thursday,'07:00'),end:iso(thursday,'07:30'),cancelled:false},after:{start:iso(thursday,'07:00'),end:iso(thursday,'07:30'),cancelled:true}}];
+u.manualWork=[{id:'work',title:'Exercices 8 à 12',subjectLabel:'Mathématiques',due:thursday,kind:'homework',source:'manual'},{id:'exam',title:'Contrôle de vocabulaire',subjectLabel:'Anglais',due:thursday,kind:'exam',source:'manual'}];f.store.save();
+let browser,page,weekReads=0;
+const shot=async name=>{await page.evaluate(()=>document.fonts.ready);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'test-results/'+name+'.png',animations:'disabled',timeout:60000});};
+try{
+ fs.mkdirSync('test-results',{recursive:true});browser=await chromium.launch({headless:true,args:['--renderer-process-limit=1']});page=await browser.newPage({viewport:{width:1440,height:1100},locale:'fr-FR',timezoneId:'Europe/Paris',serviceWorkers:'block'});page.setDefaultTimeout(30000);await page.clock.install({time:new Date(iso(thursday,'08:30'))});
+ page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&m.text().includes('Content Security Policy'))errors.push(m.text());});
+ await page.route('**/api/week?*',async route=>{weekReads++;const response=await route.fetch(),data=await response.json(),day=data.days.find(day=>day.date===thursday);if(day){day.personalEvents=[{id:'private',title:'Rendez-vous personnel',calendarTitle:'Mon calendrier',start:iso(thursday,'08:30'),end:iso(thursday,'09:30'),conflict:true},{id:'all-day',title:'Document à apporter',calendarTitle:'Mon calendrier',start:iso(thursday,'00:00'),end:iso(shiftDate(thursday,1),'00:00'),allDay:true}];day.travelEvents=[{id:'bus',title:'Trajet vers le lycée',start:iso(thursday,'07:30'),end:iso(thursday,'08:00'),direction:'outbound'}];day.events=[{id:'school',title:'Réunion du lycée',start:iso(thursday,'16:30'),end:iso(thursday,'17:00')}];}await route.fulfill({response,json:data});});
+ await page.context().addCookies([{name:'agenda_session',value:f.cookies.camille.split('=')[1],url:f.root}]);await page.goto(f.root+'/',{waitUntil:'domcontentloaded'});await page.getByRole('navigation',{name:'Navigation principale',exact:true}).getByRole('button',{name:'Agenda',exact:true}).click();await page.locator('.agenda-grid-entry').first().waitFor();
+ assert.equal(await page.locator('.agenda-grid-day').count(),7);assert.equal(await page.locator('.agenda-grid-entry.is-cancelled').count(),2);
+ const privateEntry=page.locator('.agenda-grid-entry').filter({hasText:'Rendez-vous personnel'}),math=page.locator('.agenda-grid-day').nth(3).locator('.agenda-grid-entry').filter({hasText:'Mathématiques'});assert.ok(await privateEntry.evaluate(n=>n.getBoundingClientRect().width<n.parentElement.getBoundingClientRect().width*.75));assert.ok(await math.count());
+ assert.ok((await math.locator('strong').boundingBox()).height>10,'hour-long course titles stay visible');await shot('agenda-week-desktop');
+ const reads=weekReads;await page.getByRole('button',{name:'Journée',exact:true}).click();await page.locator('[data-extra="agenda-day"][data-date="'+thursday+'"]').click();assert.equal(weekReads,reads,'switching views and days does not refetch the school source');
+ await page.locator('.agenda-day-view').getByText('Laboratoire',{exact:false}).waitFor();assert.equal(await page.locator('.agenda-day-view .week-course.is-cancelled').count(),2);await page.locator('.agenda-day-view').getByText('Exercices 8 à 12',{exact:true}).waitFor();assert.equal(await page.locator('.agenda-day-view .week-personal-event').count(),2);
+ assert.ok(await page.locator('.agenda-list-entry .agenda-entry-body').evaluateAll(nodes=>nodes.every(n=>Math.abs(n.querySelector('strong').getBoundingClientRect().left-n.getBoundingClientRect().left)<2)),'all event types share the same text alignment');await shot('agenda-day-desktop');
+ await page.locator('.agenda-course-change del').filter({hasText:'B100'}).waitFor();
+ await page.locator('.agenda-impacts').getByText(/vous commencez à 08:00/).waitFor();
+ await page.evaluate(now=>PasserelleAgenda.refreshLive(document.querySelector('#extras-root'),now),Date.parse(iso(thursday,'08:30')));
+ await page.getByText('Encore 30 min',{exact:true}).waitFor();assert.equal(await page.locator('.agenda-day-view .week-course.is-current').count(),1);
+ assert.ok(await page.locator('.agenda-day-view .week-course.is-current .agenda-course-progress>span').evaluate(n=>n.style.width==='50%'));
+ await page.locator('.agenda-day-view [data-agenda-course="math-3"]').click();
+ await page.getByRole('dialog').getByRole('heading',{name:'Mathématiques',exact:true}).waitFor();await page.getByRole('dialog').getByText('Exercices 8 à 12',{exact:true}).waitFor();
+ await page.getByLabel('Ajouter une note personnelle',{exact:true}).fill('Brouillon conservé pendant le changement de statut');
+ let failCompletion=true;await page.route('**/api/work/work',async route=>{if(failCompletion)return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({error:'Attendez la fin de la synchronisation.'})});return route.continue();});
+ await page.getByRole('checkbox',{name:'Marquer comme fait : Exercices 8 à 12',exact:true}).click();await page.getByText('Attendez la fin de la synchronisation.',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('checkbox',{name:'Marquer comme fait : Exercices 8 à 12',exact:true}).isChecked(),false);assert.notEqual(f.store.user('camille').workOverrides?.work?.done,true);
+ failCompletion=false;await page.getByRole('checkbox',{name:'Marquer comme fait : Exercices 8 à 12',exact:true}).check();await page.getByText('Travail marqué comme fait.',{exact:true}).waitFor();
+ await page.waitForFunction(()=>!document.querySelector('[data-agenda-work-done="work"]').disabled);assert.equal(f.store.user('camille').workOverrides.work.done,true);
+ assert.equal(await page.getByLabel('Ajouter une note personnelle',{exact:true}).inputValue(),'Brouillon conservé pendant le changement de statut');
+ await page.getByRole('button',{name:'Fermer les détails du cours',exact:true}).click();
+ await page.getByRole('navigation',{name:'Navigation principale',exact:true}).getByRole('button',{name:'Devoirs',exact:true}).click();
+ assert.equal(await page.locator('#page-work .work-item').filter({hasText:'Exercices 8 à 12'}).count(),0);
+ await page.getByRole('button',{name:'Afficher les travaux faits',exact:true}).click();await page.locator('#page-work .work-item.work-done').filter({hasText:'Exercices 8 à 12'}).waitFor();
+ await page.getByRole('navigation',{name:'Navigation principale',exact:true}).getByRole('button',{name:'Agenda',exact:true}).click();await page.locator('[data-extra="agenda-day"][data-date="'+thursday+'"]').click();await page.locator('.agenda-day-view [data-agenda-course="math-3"]').click();
+ assert.equal(await page.getByRole('checkbox',{name:'Remettre à faire : Exercices 8 à 12',exact:true}).isChecked(),true);
+ await page.getByRole('checkbox',{name:'Remettre à faire : Exercices 8 à 12',exact:true}).uncheck();await page.getByText('Travail remis à faire.',{exact:true}).waitFor();await page.waitForFunction(()=>!document.querySelector('[data-agenda-work-done="work"]').disabled);assert.equal(f.store.user('camille').workOverrides.work.done,false);
+
+ await page.getByLabel('Ajouter une note personnelle',{exact:true}).fill('Apporter le livre pour le prochain cours');await page.getByRole('button',{name:'Enregistrer ma note',exact:true}).click();
+ await page.getByText('Votre note est enregistrée pour cette matière.',{exact:true}).waitFor();assert.ok(f.store.user('camille').courseNotes.some(note=>note.text==='Apporter le livre pour le prochain cours'));
+ await page.getByRole('button',{name:'Fermer les détails du cours',exact:true}).click();
+ await page.setViewportSize({width:390,height:844});await shot('agenda-day-mobile');
+ await page.locator('[data-extra="agenda-day"][data-date="'+tuesday+'"]').click();
+ assert.equal(await page.locator('#week-date').inputValue(),tuesday);
+ const compactCourses=page.locator('.agenda-day-view .week-course');assert.equal(await compactCourses.count(),4);
+ await page.locator('.agenda-day-view').getByText('Mathématiques',{exact:true}).waitFor();
+ assert.ok(await compactCourses.evaluateAll(nodes=>nodes.every(n=>n.getBoundingClientRect().height<=100)),'daily cards fit their content');
+ assert.ok(await page.locator('.agenda-day-list').evaluate(n=>n.getBoundingClientRect().height<=520),'five real-world courses use a compact list');
+ assert.equal(await page.locator('.agenda-entry-title').filter({hasText:'Histoire-géographie'}).count(),1);
+ assert.equal(await page.locator('.agenda-entry-title').filter({hasText:'📐'}).count(),0);
+ assert.equal(await page.locator('.agenda-interval').count(),3);
+ assert.equal(await page.locator('.agenda-interval').filter({hasText:'15 min'}).count(),2);
+ await page.locator('.agenda-interval').filter({hasText:'55 min'}).waitFor();
+ assert.equal(await page.locator('.agenda-interval').filter({hasText:'Récréation'}).count(),2);
+ await page.locator('.agenda-interval').filter({hasText:'Pause déjeuner'}).filter({hasText:'55 min'}).waitFor();
+ const beforeDateNav=weekReads;
+ await page.getByRole('button',{name:'Jour suivant',exact:true}).click();
+ assert.equal(await page.locator('#week-date').inputValue(),shiftDate(tuesday,1));
+ await page.getByRole('button',{name:'Jour précédent',exact:true}).click();
+ assert.equal(await page.locator('#week-date').inputValue(),tuesday);
+ assert.equal(weekReads,beforeDateNav,'day arrows use the loaded week snapshot');
+ await page.getByRole('button',{name:'Aujourd’hui',exact:true}).click();
+ assert.equal(await page.locator('#week-date').inputValue(),thursday);
+ assert.equal(weekReads,beforeDateNav,'today uses the loaded week snapshot');
+ await page.locator('[data-extra="agenda-day"][data-date="'+tuesday+'"]').click();
+
+ assert.equal(await compactCourses.locator('.agenda-subject-icon').count(),4);
+ assert.ok(await compactCourses.locator('.agenda-entry-glyph').evaluateAll(nodes=>nodes.every(n=>!n.textContent.trim()&&n.querySelector('svg').getBoundingClientRect().width>=19)),'subject marks are visible SVG outlines without emoji text');
+ await page.locator('.agenda-day-view [data-agenda-course=history1-photo]').click();await page.getByRole('dialog').getByText('2 séances',{exact:false}).waitFor();await shot('agenda-detail-mobile');await page.getByRole('button',{name:'Fermer les détails du cours',exact:true}).click();
+ await page.locator('.agenda-day-view').scrollIntoViewIfNeeded();await page.evaluate(()=>scrollBy(0,150));
+ const sticky=await page.locator('.agenda-datebar').boundingBox(),brand=await page.locator('.topbar').boundingBox();
+ assert.ok(Math.abs(sticky.y-(brand.y+brand.height))<=2,'date navigation stays below the app header while scrolling');
+ assert.ok(await page.locator('.agenda-datebar').evaluate(n=>{const b=n.getBoundingClientRect();return document.elementFromPoint(b.left+b.width/2,b.top+12)?.closest('.agenda-datebar')===n;}),'the sticky datebar stays above the scrolling courses');
+ await shot('agenda-cards-mobile');
+ await page.evaluate(()=>appearance.set('dark'));await shot('agenda-cards-mobile-dark');
+ for(const width of [320,390,820,1440]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.ok(await compactCourses.locator('.agenda-entry-title').evaluateAll(nodes=>nodes.every(n=>n.scrollHeight<=n.clientHeight+1)),'full course titles remain visible');}
+ await page.setViewportSize({width:390,height:844});
+ await page.evaluate(()=>{const target=document.querySelector('.agenda-day-view'),make=(type,x)=>new TouchEvent(type,{bubbles:true,touches:type==='touchstart'?[new Touch({identifier:1,target,clientX:x,clientY:400})]:[],changedTouches:[new Touch({identifier:1,target,clientX:x,clientY:400})]});target.dispatchEvent(make('touchstart',300));target.dispatchEvent(make('touchend',100));});
+ await page.waitForFunction(date=>document.querySelector('.agenda-day-selector [aria-pressed=true]')?.dataset.date===date,shiftDate(tuesday,1));await page.waitForTimeout(500);
+ const sunday=shiftDate(monday,6);await page.locator('[data-extra="agenda-day"][data-date="'+sunday+'"]').click();await page.getByText('Aucun cours publié pour cette journée',{exact:true}).waitFor();assert.ok(await page.locator('.agenda-day-selector [aria-pressed=true]').evaluate(n=>{const b=n.getBoundingClientRect(),p=n.parentElement.getBoundingClientRect();return b.left>=p.left-1&&b.right<=p.right+1;}));await page.getByRole('button',{name:'Jour suivant',exact:true}).click();
+ await page.waitForFunction(date=>document.querySelector('.agenda-day-selector [aria-pressed=true]')?.dataset.date===date,shiftDate(sunday,1));
+ await page.getByRole('button',{name:'Jour précédent',exact:true}).click();
+ await page.waitForFunction(date=>document.querySelector('.agenda-day-selector [aria-pressed=true]')?.dataset.date===date,sunday);
+ await page.locator('[data-extra="agenda-day"][data-date="'+thursday+'"]').click();
+ for(const width of [320,390,820]){await page.setViewportSize({width,height:900});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
+ await page.getByRole('button',{name:'Semaine',exact:true}).click();assert.equal(await page.locator('.agenda-grid-day').count(),7);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.ok(await page.locator('.agenda-week-board').evaluate(n=>n.scrollWidth>n.clientWidth));
+ await page.getByRole('button',{name:'Semaine suivante',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('.agenda-grid-entry'));assert.equal(await page.locator('.agenda-grid-day').count(),7);await page.getByRole('button',{name:'Semaine précédente',exact:true}).click();await page.locator('.agenda-grid-entry').first().waitFor();
+ await page.getByRole('button',{name:'Journée',exact:true}).click();await page.locator('#week-date').fill(thursday);await page.locator('#week-date').dispatchEvent('change');await page.locator('.agenda-day-view').getByText('Rendez-vous personnel',{exact:true}).waitFor();
+ await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('navigation',{name:'Navigation principale',exact:true}).getByRole('button',{name:'Agenda',exact:true}).click();await page.locator('.agenda-day-view').waitFor();assert.equal(await page.evaluate(()=>localStorage.getItem('passerelle.agendaView')),'day');
+ await page.emulateMedia({reducedMotion:'reduce'});assert.deepEqual(errors,[]);assert.equal(f.calls.mail.length,0);
+ await page.locator('.agenda-day-view [data-agenda-course]').first().click();await page.getByRole('dialog').waitFor();
+ await page.evaluate(async()=>{await api('logout',{});await refresh(true);});await page.getByRole('button',{name:'Se connecter',exact:true}).waitFor();
+ assert.equal(await page.locator('#agenda-course-dialog').textContent(),'');assert.equal(await page.locator('#agenda-course-dialog').evaluate(node=>node.open),false);
+
+ console.log(JSON.stringify({ok:true,weeklyTimetable:true,groupedCourses:true,liveCourse:true,changeSinceVisit:true,courseDetails:true,scheduleImpact:true,inlineHomeworkDone:true,inlineHomeworkUndo:true,homeworkPageConsistent:true,rejectedSaveRestored:true,noteDraftPreserved:true,personalNotes:true,courseDialogClearedOnLogout:true,swipeDays:true,overlaps:true,daySelector:true,mobile:true,dark:true,widths:[320,390,820,1440],modeRemembered:true,weekNavigation:true,stickyDatebar:true,dayArrows:true,todayWithoutRefetch:true,shortBreaks:true,emptyWeek:true,cancellations:true,homeworkAndExams:true,personalAndSchoolEvents:true,transportPreserved:true,noAPIReadOnViewChange:true,jsAndCSPErrors:0,realENTCalls:0,realEmailsSent:0}));
+}catch(e){await page?.screenshot({path:'test-results/agenda-failure.png',animations:'disabled'}).catch(()=>{});throw e;}finally{await browser?.close();await f.close();}

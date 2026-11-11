@@ -17,7 +17,7 @@ const userState=user=>user.archivedAt?'archived':user.suspendedAt?'suspended':'a
 const safeOptions=params=>Object.fromEntries(Object.entries(params).filter(([key])=>['source','role','enabled','paused','minutes','hours','keepCurrent'].includes(key)));
 
 export class AdminControl {
-  constructor(store,{engine,mailer,browsers,school,menu,pronote,audit,baseURL,clock=()=>Date.now(),version='4.15.2',schedule=fn=>setTimeout(fn,0)}={}){
+  constructor(store,{engine,mailer,browsers,school,menu,pronote,audit,baseURL,clock=()=>Date.now(),version='4.17.0',schedule=fn=>setTimeout(fn,0)}={}){
     Object.assign(this,{store,engine,mailer,browsers,school,menu,pronote,audit,baseURL,clock,version,schedule});
     this.plans=new Map();this.running=false;this.closed=false;this.lastIncidentScan=0;
     let changed=false;

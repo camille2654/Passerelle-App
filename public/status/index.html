@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#fbfcf8">
+  <meta name="description" content="L’état des services Passerelle : portail, synchronisation, agendas et notifications.">
+  <title>Statut du système · Passerelle</title>
+  <link rel="icon" href="./symbol.png" type="image/png">
+  <link rel="stylesheet" href="./style.css?v=4.21.1">
+  <script src="./charts.js?v=4.21.1" defer></script>
+  <script src="./page.js?v=4.21.1" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Aller au statut des services</a>
+  <header class="topbar">
+    <a class="brand" href="../" aria-label="Passerelle, ouvrir l’application"><img src="./symbol.png" width="32" height="32" alt=""><span>passerelle</span><small>statut</small></a>
+    <div class="header-actions"><button id="theme" class="icon-button" type="button" aria-label="Activer le thème sombre" aria-pressed="false"><svg aria-hidden="true" viewBox="0 0 24 24"><use href="./icons.svg#i-moon"/></svg></button><a class="app-link" href="../">L’application <svg aria-hidden="true" viewBox="0 0 24 24"><use href="./icons.svg#i-out"/></svg></a></div>
+  </header>
+  <main id="main">
+    <section class="intro"><p class="eyebrow">LES SERVICES PASSERELLE</p><h1>Le point sur le système.</h1><p>Le portail, vos agendas et les services qui les accompagnent.</p></section>
+    <section class="summary" id="summary" data-state="unknown" aria-labelledby="status-title">
+      <span class="summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><use id="summary-symbol" href="./icons.svg#i-activity"/></svg></span>
+      <div class="summary-copy"><span class="live-label" id="live-label">Vérification</span><h2 id="status-title">Vérification en cours…</h2><p id="status-detail">Le statut actuel sera affiché dès la réponse du service.</p></div>
+      <button id="refresh" class="refresh" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><use href="./icons.svg#i-sync"/></svg><span>Actualiser</span></button>
+    </section>
+    <div class="check-line"><p id="checked-at">Aucun contrôle reçu pour le moment.</p><span>Actualisation toutes les 30 s</span></div>
+    <aside id="maintenance" class="maintenance" hidden><strong>Maintenance en cours</strong><p id="maintenance-detail"></p></aside>
+    <section id="status-charts" class="status-charts" aria-labelledby="charts-title" aria-busy="true">
+      <div class="charts-heading"><div><p class="eyebrow">LES MESURES DU SUIVI</p><h2 id="charts-title">Un peu de recul.</h2><p id="charts-freshness">Les premières mesures sont en cours de collecte.</p></div><div class="period-picker" role="group" aria-label="Période des graphiques"><button type="button" data-chart-hours="1" aria-pressed="true" aria-label="Dernière heure">1 h</button><button type="button" data-chart-hours="6" aria-pressed="false" aria-label="6 dernières heures">6 h</button><button type="button" data-chart-hours="24" aria-pressed="false" aria-label="24 dernières heures">24 h</button></div></div>
+      <div class="metric-grid">
+        <div class="metric"><span>Dernière réponse</span><strong id="metric-last">—</strong><small id="metric-last-note">En attente du premier contrôle</small></div>
+        <div class="metric"><span>Réponse médiane</span><strong id="metric-median">—</strong><small id="metric-median-note">0 réponse valide</small></div>
+        <div class="metric"><span>Contrôles au vert</span><strong id="metric-green">0 / 0</strong><small>Parmi les contrôles reçus</small></div>
+        <div class="metric"><span>Mesures reçues</span><strong id="metric-count">0</strong><small>Sur la période sélectionnée</small></div>
+      </div>
+      <div class="chart-grid">
+        <section class="chart-card" aria-labelledby="latency-title"><header><h3 id="latency-title">Temps de réponse</h3><span class="chart-unit">ms</span></header><p>Service contrôlé depuis la VM, chaque minute.</p>
+          <div id="latency-chart" class="response-chart" tabindex="0" role="group" aria-label="Temps de réponse. Touchez une mesure ou utilisez les flèches du clavier."><div class="chart-y" aria-hidden="true"><span id="latency-max">10 ms</span><span id="latency-mid">5 ms</span><span>0 ms</span></div><div class="response-area"><svg id="latency-plot" viewBox="0 0 800 190" preserveAspectRatio="none" aria-hidden="true"></svg><p id="latency-empty">Les premières mesures apparaîtront ici.</p></div></div>
+          <div class="chart-axis response-axis" aria-hidden="true"><span data-chart-start></span><span data-chart-end></span></div><output id="latency-readout" class="chart-readout" aria-live="polite">Aucune mesure à sélectionner.</output>
+        </section>
+        <section class="chart-card" aria-labelledby="timeline-title"><header><h3 id="timeline-title">Évolution des services</h3><span class="chart-unit">États observés</span></header><p>Les interruptions et les pauses restent visibles.</p><div id="service-timeline" class="service-timeline"></div><div class="chart-axis timeline-axis" aria-hidden="true"><span data-chart-start></span><span data-chart-end></span></div><output id="timeline-readout" class="chart-readout" aria-live="polite">Gris : aucun contrôle reçu.</output></section>
+      </div>
+      <ul class="chart-legend" aria-label="Légende des graphiques"><li><i class="state-operational" aria-hidden="true"></i>Actif</li><li><i class="state-paused" aria-hidden="true"></i>Pause ou incident</li><li><i class="state-unavailable" aria-hidden="true"></i>Indisponible</li><li><i class="state-unknown" aria-hidden="true"></i>Sans mesure / non vérifié</li><li><i class="state-disabled" aria-hidden="true"></i>Non activé</li></ul>
+      <p id="charts-since" class="charts-note">Un contrôle par minute. Les périodes sans mesure restent grises.</p>
+      <details class="measurement-details"><summary>Consulter les mesures</summary><p id="table-count">Aucune mesure reçue.</p><div class="measurements-scroll"><table><thead><tr><th scope="col">Date · heure de Paris</th><th scope="col">État global</th><th scope="col">Réponse</th></tr></thead><tbody id="measurements-body"></tbody></table></div></details>
+    </section>
+    <section class="services" aria-labelledby="services-title"><div class="section-heading"><h2 id="services-title">État des services</h2><span id="services-caption">En attente d’une vérification</span></div><ul id="components" class="components" aria-busy="true"></ul></section>
+    <p class="scope" id="scope">Ce suivi vérifie Passerelle. Les connexions de chaque compte, les établissements et les agendas externes ont leur propre état.</p>
+    <details class="history"><summary>Journal du service <svg aria-hidden="true" viewBox="0 0 24 24"><use href="./icons.svg#i-plus"/></svg></summary><div><p id="monitoring-since">Le suivi débute au démarrage du service.</p><ul id="events"></ul><p id="history-empty">Aucun changement d’état reçu.</p><p class="history-note">Cet historique commence au dernier démarrage de Passerelle. Il ne représente pas une mesure de disponibilité sur plusieurs jours.</p></div></details>
+    <noscript><p class="maintenance">Activez JavaScript pour vérifier l’état actuel. Aucun statut ne peut être confirmé sans cette vérification.</p></noscript>
+    <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+  <footer><span>Passerelle <span aria-hidden="true">·</span> <span id="version">Statut des services</span></span><a href="../">Retour à l’application <svg aria-hidden="true" viewBox="0 0 24 24"><use href="./icons.svg#i-arrow"/></svg></a></footer>
+</body>
+</html>

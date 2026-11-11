@@ -10,7 +10,7 @@ const motion = (() => {
     running.set(element, animation);
     return animation.finished.catch(() => {}).finally(() => { if (running.get(element) === animation) running.delete(element); });
   }
-  function enter(element) { return play(element, [{ opacity: 0, transform: 'translateY(7px)' }, { opacity: 1, transform: 'none' }]); }
+  function enter(element) { return play(element, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], {duration:320}); }
   function finish(element) { return play(element, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(8px)' }], { duration: 150 }); }
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const mark = '<svg class="loading-mark" viewBox="0 0 28 28" fill="none" aria-hidden="true"><path class="loading-bridge" d="M7 23V12.5a6 6 0 0 1 12 0V18" pathLength="100"/><circle class="loading-seed" cx="18.5" cy="3" r="1.7"/></svg>';
@@ -31,10 +31,65 @@ const motion = (() => {
   function stagger(root, selector = '.tomorrow-courses li, .work-item, .week-day, .study-list>li, .friend-list>li') {
     if (!root || preference.matches) return;
     [...root.querySelectorAll(selector)].filter(element => element.getClientRects().length).slice(0, 8).forEach((element, index) => {
-      void play(element, [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 280, delay: index * 24 });
+      void play(element, [{ opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: 340, delay: index * 26, fill:'backwards' });
     });
   }
-  function scene(root) { void enter(root); stagger(root); }
+  function scene(root) {
+    void enter(root);
+    if(root?.id==='page-more')stagger(root,'.more-search-wrap,.more-quick>.simple-link,.more-disclosure,.more-settings-wrap');
+    else stagger(root);
+  }
+  const navPositions=new WeakMap();
+  function navigation(animate=true) {
+    const nav=document.querySelector('.sidebar nav'),selected=nav?.querySelector('.nav-link.selected');
+    if(!nav)return;
+    let indicator=nav.querySelector('.nav-motion-indicator');
+    if(!indicator){indicator=document.createElement('span');indicator.className='nav-motion-indicator';indicator.setAttribute('aria-hidden','true');nav.prepend(indicator);nav.classList.add('motion-ready');}
+    indicator.hidden=!selected;if(!selected)return;
+    const box=nav.getBoundingClientRect(),item=selected.getBoundingClientRect(),mobile=matchMedia('(max-width:780px)').matches;
+    const width=mobile?Math.min(68,item.width-8):item.width,height=mobile?50:item.height;
+    const transform=`translate(${item.left-box.left+(item.width-width)/2}px,${item.top-box.top+(item.height-height)/2}px)`;
+    const previous=navPositions.get(nav);
+    if(!animate)running.get(indicator)?.cancel();
+    indicator.style.width=width+'px';indicator.style.height=height+'px';indicator.style.transform=transform;
+    if(animate&&previous&&previous.transform!==transform){
+      void play(indicator,[{transform:previous.transform},{transform}],{duration:380,easing:'cubic-bezier(.22,1,.36,1)'});
+      void play(selected.querySelector('.icon'),[{transform:'translateY(0)'},{transform:'translateY(-4px)',offset:.4},{transform:'translateY(0)'}],{duration:360});
+    }
+    navPositions.set(nav,{transform});
+  }
+  let resizeFrame;
+  window.addEventListener('resize',()=>{cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>navigation(false));});
+  const disclosures=new WeakMap();
+  async function disclosure(node) {
+    const summary=node.querySelector(':scope>summary');if(!summary)return;
+    const previous=disclosures.get(node),target=previous?!previous.target:!node.open;
+    const start=node.getBoundingClientRect().height;
+    running.get(node)?.cancel();
+    const ticket={target};disclosures.set(node,ticket);
+    if(preference.matches){node.open=target;node.classList.remove('is-disclosing');disclosures.delete(node);return;}
+    node.open=true;
+    const border=Number.parseFloat(getComputedStyle(node).borderTopWidth)||0;
+    const end=target?node.getBoundingClientRect().height:summary.offsetHeight+border*2;
+    node.classList.add('is-disclosing');
+    if(!target&&node.contains(document.activeElement))summary.focus({preventScroll:true});
+    if(target)stagger(node,'.more-disclosure-content>.simple-link,.settings-group-content>.simple-link');
+    await play(node,[{height:start+'px'},{height:end+'px'}],{duration:320,easing:'cubic-bezier(.22,1,.36,1)'});
+    if(disclosures.get(node)!==ticket)return;
+    if(!target&&node.contains(document.activeElement))summary.focus({preventScroll:true});
+    node.open=target;node.classList.remove('is-disclosing');disclosures.delete(node);
+  }
+  document.addEventListener('click',event=>{
+    const summary=event.target.closest('summary'),details=summary?.parentElement;
+    if(details?.matches('details[data-motion-disclosure]')){event.preventDefault();void disclosure(details);}
+  });
+  function press(control){
+    if(!control||control.disabled||control.getAttribute('aria-disabled')==='true')return;
+    const target=control.closest('.sidebar nav')?control.querySelector('.icon'):control;
+    void play(target,[{transform:'scale(1)'},{transform:'scale(.96)',offset:.35},{transform:'scale(1)'}],{duration:260});
+  }
+  document.addEventListener('pointerdown',event=>{if(event.button===0)press(event.target.closest('button,.button,summary'));},{passive:true});
+  document.addEventListener('click',event=>{if(event.detail===0)press(event.target.closest('button,.button,summary'));});
   function progress(root, previous = 0) {
     const path = root?.querySelector('[data-progress-value]'); if (!path) return;
     const target = Number(path.dataset.progressValue);
@@ -60,14 +115,17 @@ const motion = (() => {
   function open(dialog) {
     if (!dialog || dialog.open) return;
     dialog.showModal();
-    const from = dialog.classList.contains('notifications-drawer') ? 'translateX(24px)' : 'translateY(10px) scale(.985)';
-    void play(dialog, [{ opacity: 0, transform: from }, { opacity: 1, transform: 'none' }], { duration: 280 });
+    const sheet=dialog.matches('.agenda-course-dialog,.hub-detail-dialog')&&matchMedia('(max-width:600px)').matches;
+    const from = dialog.classList.contains('notifications-drawer') ? 'translateX(100%)' : sheet?'translateY(100%)':'translateY(20px) scale(.97)';
+    void play(dialog, [{ opacity: sheet?1:0, transform: from }, { opacity: 1, transform: 'none' }], { duration: sheet?400:320,easing:'cubic-bezier(.22,1,.36,1)' });
   }
   async function close(dialog) {
     if (!dialog?.open || dialog.dataset.closing) return;
     dialog.dataset.closing = 'true';
-    const to = dialog.classList.contains('notifications-drawer') ? 'translateX(18px)' : 'translateY(7px) scale(.99)';
-    await play(dialog, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: to }], { duration: 160 });
+    const sheet=dialog.matches('.agenda-course-dialog,.hub-detail-dialog')&&matchMedia('(max-width:600px)').matches;
+    const to = dialog.classList.contains('notifications-drawer') ? 'translateX(100%)' : sheet?'translateY(100%)':'translateY(14px) scale(.98)';
+    const current=getComputedStyle(dialog);
+    await play(dialog, [{ opacity:current.opacity,transform:current.transform }, { opacity: sheet?1:0, transform: to }], { duration: 220,easing:'cubic-bezier(.4,0,1,1)' });
     const trigger = [...document.querySelectorAll('[aria-controls]')].find(element => element.getAttribute('aria-controls') === dialog.id && element.getClientRects().length);
     dialog.close(); delete dialog.dataset.closing; trigger?.focus({ preventScroll: true });
   }
@@ -94,5 +152,5 @@ const motion = (() => {
     if (['motion-preview', 'install-help'].includes(event.target.id)) { event.preventDefault(); void close(event.target); }
   }, true);
   preference.addEventListener('change', () => { if (preference.matches) document.getAnimations?.().forEach(animation => animation.cancel()); });
-  return { enter, finish, open, close, loader, skeleton, busy, toastMarkup, notice, scene, stagger, progress, request, boot, bootError, leaveBoot, reduced: () => preference.matches };
+  return { enter, finish, open, close, loader, skeleton, busy, toastMarkup, notice, scene, stagger, progress, request, boot, bootError, leaveBoot,navigation, reduced: () => preference.matches };
 })();

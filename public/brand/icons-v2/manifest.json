@@ -1,0 +1,411 @@
+{
+  "name": "Passerelle · Repères",
+  "version": "2.0",
+  "grid": 24,
+  "stroke": 1.65,
+  "license": "GPL-3.0-or-later",
+  "categories": {
+    "navigation": "Se repérer",
+    "actions": "Agir",
+    "organisation": "S’organiser",
+    "scolarite": "Au lycée",
+    "documents": "Documents et échanges",
+    "compte": "Espace personnel",
+    "transport": "Se déplacer",
+    "matieres": "Matières"
+  },
+  "icons": [
+    {
+      "name": "arrow",
+      "label": "Continuer",
+      "category": "navigation",
+      "file": "arrow.svg",
+      "symbol": "i-arrow"
+    },
+    {
+      "name": "sync",
+      "label": "Synchroniser",
+      "category": "actions",
+      "file": "sync.svg",
+      "symbol": "i-sync"
+    },
+    {
+      "name": "check",
+      "label": "Valider",
+      "category": "actions",
+      "file": "check.svg",
+      "symbol": "i-check"
+    },
+    {
+      "name": "lock",
+      "label": "Confidentialité",
+      "category": "compte",
+      "file": "lock.svg",
+      "symbol": "i-lock"
+    },
+    {
+      "name": "clock",
+      "label": "Horaires",
+      "category": "organisation",
+      "file": "clock.svg",
+      "symbol": "i-clock"
+    },
+    {
+      "name": "calendar",
+      "label": "Agenda",
+      "category": "organisation",
+      "file": "calendar.svg",
+      "symbol": "i-calendar"
+    },
+    {
+      "name": "copy",
+      "label": "Copier",
+      "category": "actions",
+      "file": "copy.svg",
+      "symbol": "i-copy"
+    },
+    {
+      "name": "out",
+      "label": "Lien externe",
+      "category": "navigation",
+      "file": "out.svg",
+      "symbol": "i-out"
+    },
+    {
+      "name": "close",
+      "label": "Fermer",
+      "category": "navigation",
+      "file": "close.svg",
+      "symbol": "i-close"
+    },
+    {
+      "name": "users",
+      "label": "Amis et groupe",
+      "category": "compte",
+      "file": "users.svg",
+      "symbol": "i-users"
+    },
+    {
+      "name": "activity",
+      "label": "Bilan et activité",
+      "category": "organisation",
+      "file": "activity.svg",
+      "symbol": "i-activity"
+    },
+    {
+      "name": "pin",
+      "label": "Lieu",
+      "category": "transport",
+      "file": "pin.svg",
+      "symbol": "i-pin"
+    },
+    {
+      "name": "mail",
+      "label": "Messagerie",
+      "category": "documents",
+      "file": "mail.svg",
+      "symbol": "i-mail"
+    },
+    {
+      "name": "book",
+      "label": "Cours",
+      "category": "scolarite",
+      "file": "book.svg",
+      "symbol": "i-book"
+    },
+    {
+      "name": "bag",
+      "label": "Mon sac",
+      "category": "scolarite",
+      "file": "bag.svg",
+      "symbol": "i-bag"
+    },
+    {
+      "name": "study",
+      "label": "Révisions",
+      "category": "scolarite",
+      "file": "study.svg",
+      "symbol": "i-study"
+    },
+    {
+      "name": "phone",
+      "label": "Application mobile",
+      "category": "compte",
+      "file": "phone.svg",
+      "symbol": "i-phone"
+    },
+    {
+      "name": "sun",
+      "label": "Ma journée",
+      "category": "organisation",
+      "file": "sun.svg",
+      "symbol": "i-sun"
+    },
+    {
+      "name": "bell",
+      "label": "Notifications",
+      "category": "compte",
+      "file": "bell.svg",
+      "symbol": "i-bell"
+    },
+    {
+      "name": "palette",
+      "label": "Personnalisation",
+      "category": "compte",
+      "file": "palette.svg",
+      "symbol": "i-palette"
+    },
+    {
+      "name": "exit",
+      "label": "Déconnexion",
+      "category": "compte",
+      "file": "exit.svg",
+      "symbol": "i-exit"
+    },
+    {
+      "name": "cutlery",
+      "label": "Menu du lycée",
+      "category": "scolarite",
+      "file": "cutlery.svg",
+      "symbol": "i-cutlery"
+    },
+    {
+      "name": "plus",
+      "label": "Ajouter",
+      "category": "actions",
+      "file": "plus.svg",
+      "symbol": "i-plus"
+    },
+    {
+      "name": "search",
+      "label": "Rechercher",
+      "category": "navigation",
+      "file": "search.svg",
+      "symbol": "i-search"
+    },
+    {
+      "name": "cards",
+      "label": "Mes outils",
+      "category": "navigation",
+      "file": "cards.svg",
+      "symbol": "i-cards"
+    },
+    {
+      "name": "support",
+      "label": "Aide et assistance",
+      "category": "compte",
+      "file": "support.svg",
+      "symbol": "i-support"
+    },
+    {
+      "name": "sources",
+      "label": "Connexions",
+      "category": "compte",
+      "file": "sources.svg",
+      "symbol": "i-sources"
+    },
+    {
+      "name": "terminal",
+      "label": "Console administrateur",
+      "category": "compte",
+      "file": "terminal.svg",
+      "symbol": "i-terminal"
+    },
+    {
+      "name": "settings",
+      "label": "Réglages",
+      "category": "compte",
+      "file": "settings.svg",
+      "symbol": "i-settings"
+    },
+    {
+      "name": "home",
+      "label": "Accueil",
+      "category": "navigation",
+      "file": "home.svg",
+      "symbol": "i-home"
+    },
+    {
+      "name": "homework",
+      "label": "Devoirs",
+      "category": "scolarite",
+      "file": "homework.svg",
+      "symbol": "i-homework"
+    },
+    {
+      "name": "exam",
+      "label": "Contrôles",
+      "category": "scolarite",
+      "file": "exam.svg",
+      "symbol": "i-exam"
+    },
+    {
+      "name": "note",
+      "label": "Notes de cours",
+      "category": "scolarite",
+      "file": "note.svg",
+      "symbol": "i-note"
+    },
+    {
+      "name": "focus",
+      "label": "Concentration",
+      "category": "organisation",
+      "file": "focus.svg",
+      "symbol": "i-focus"
+    },
+    {
+      "name": "document",
+      "label": "Document",
+      "category": "documents",
+      "file": "document.svg",
+      "symbol": "i-document"
+    },
+    {
+      "name": "folder",
+      "label": "Dossier",
+      "category": "documents",
+      "file": "folder.svg",
+      "symbol": "i-folder"
+    },
+    {
+      "name": "star",
+      "label": "Favoris",
+      "category": "documents",
+      "file": "star.svg",
+      "symbol": "i-star"
+    },
+    {
+      "name": "share",
+      "label": "Partager",
+      "category": "documents",
+      "file": "share.svg",
+      "symbol": "i-share"
+    },
+    {
+      "name": "download",
+      "label": "Télécharger",
+      "category": "actions",
+      "file": "download.svg",
+      "symbol": "i-download"
+    },
+    {
+      "name": "upload",
+      "label": "Importer",
+      "category": "actions",
+      "file": "upload.svg",
+      "symbol": "i-upload"
+    },
+    {
+      "name": "bus",
+      "label": "Bus",
+      "category": "transport",
+      "file": "bus.svg",
+      "symbol": "i-bus"
+    },
+    {
+      "name": "train",
+      "label": "Train",
+      "category": "transport",
+      "file": "train.svg",
+      "symbol": "i-train"
+    },
+    {
+      "name": "tram",
+      "label": "Tramway",
+      "category": "transport",
+      "file": "tram.svg",
+      "symbol": "i-tram"
+    },
+    {
+      "name": "route",
+      "label": "Itinéraire",
+      "category": "transport",
+      "file": "route.svg",
+      "symbol": "i-route"
+    },
+    {
+      "name": "walk",
+      "label": "À pied",
+      "category": "transport",
+      "file": "walk.svg",
+      "symbol": "i-walk"
+    },
+    {
+      "name": "news",
+      "label": "Actualités",
+      "category": "documents",
+      "file": "news.svg",
+      "symbol": "i-news"
+    },
+    {
+      "name": "moon",
+      "label": "Ma soirée",
+      "category": "organisation",
+      "file": "moon.svg",
+      "symbol": "i-moon"
+    },
+    {
+      "name": "key",
+      "label": "Clé d’accès",
+      "category": "compte",
+      "file": "key.svg",
+      "symbol": "i-key"
+    },
+    {
+      "name": "image",
+      "label": "Photo",
+      "category": "documents",
+      "file": "image.svg",
+      "symbol": "i-image"
+    },
+    {
+      "name": "globe",
+      "label": "Monde et géographie",
+      "category": "matieres",
+      "file": "globe.svg",
+      "symbol": "i-globe"
+    },
+    {
+      "name": "math",
+      "label": "Mathématiques",
+      "category": "matieres",
+      "file": "math.svg",
+      "symbol": "i-math"
+    },
+    {
+      "name": "science",
+      "label": "Sciences",
+      "category": "matieres",
+      "file": "science.svg",
+      "symbol": "i-science"
+    },
+    {
+      "name": "languages",
+      "label": "Langues",
+      "category": "matieres",
+      "file": "languages.svg",
+      "symbol": "i-languages"
+    },
+    {
+      "name": "sport",
+      "label": "Sport",
+      "category": "matieres",
+      "file": "sport.svg",
+      "symbol": "i-sport"
+    },
+    {
+      "name": "art",
+      "label": "Arts",
+      "category": "matieres",
+      "file": "art.svg",
+      "symbol": "i-art"
+    },
+    {
+      "name": "shield",
+      "label": "Compte protégé",
+      "category": "compte",
+      "file": "shield.svg",
+      "symbol": "i-shield"
+    }
+  ]
+}

@@ -29,3 +29,8 @@ Use case: logo-brand. Asset type: finished brand symbol for Passerelle, a French
 ## Interface épurée · 4.3
 
 La version 4.3 emploie des fonds sobres, des séparations fines et les couleurs de matière. Les 22 icônes d’interface sont des tracés SVG originaux de 24 px : trait arrondi, angles ouverts et petits repères ponctuels. Elles sont dans `passerelle-icons.svg`, avec `check.svg` pour les contrôles. Les vues et le panneau de notifications utilisent des transitions courtes en opacité et translation, désactivées avec la préférence de mouvement réduit. La palette de marque reste disponible pour les autres supports ; le citron n’est pas un fond de panneau dans l’application.
+
+
+## Campagne et repères · édition 02 / 4.16.0
+
+La collection conserve le logo et ajoute une illustration papier originale pour les bannières, des compositions éditables et des exports pour les réseaux sociaux. `campaign/index.html` présente les formats et les téléchargements. `icons-v2/preview.html` présente les 56 icônes Repères, avec SVG individuels, sprite et manifeste. `passerelle-creative-kit.zip` regroupe la campagne, les icônes, les logos et la police avec sa licence. Aucun contenu de compte ou document scolaire réel n’est utilisé dans les compositions.

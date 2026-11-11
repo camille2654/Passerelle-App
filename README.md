@@ -1,6 +1,98 @@
+## 4.26.4 — ouverture PRONOTE dans un nouvel onglet
+
+L’interception accepte maintenant la première requête d’un nouvel onglet avant
+la création de son cadre navigateur. Ce cas produisait à tort « Le portail ENT
+ne répond pas ». Les essais Chromium couvrent aussi les ouvertures en nouvel
+onglet, avec arrivée directe ou redirection CAS/SAML. Les échecs de capture
+indiquent leur étape dans le journal, sans erreur brute ni secret.
+La confirmation d’un import sur le compte réel reste nécessaire.
+
+## 4.26.3 — redirections ENT vers PRONOTE
+
+Le passage automatique de l’ENT à PRONOTE est désormais intercepté à chaque
+redirection. La session est récupérée avant son utilisation par le navigateur,
+y compris après un formulaire CAS/SAML. Les domaines restent contrôlés et les
+boucles de connexion sont arrêtées. Le défaut et son correctif sont vérifiés
+avec de vraies redirections HTTP dans Chromium, sur des serveurs locaux.
+L’import sur un compte réel reste à confirmer. [Détails](docs/MULTI_ENT.md).
+
+## 4.26.2 — reprise de connexion PRONOTE
+
+La reprise SSO couvre désormais les POST et les arrivées à la racine de PRONOTE,
+ainsi que les formats JSON et `onload` encodés. Le jeton et la session PRONOTE
+restent chiffrés pour la reconnexion. Le dialogue affiche une vraie étape d’import,
+récupère les captures interrompues et rend les échecs explicites au lieu de rester
+en attente. [Parcours, confidentialité et limites](docs/MULTI_ENT.md).
+
+## 4.26.1 — correction du bouton PRONOTE
+
+Le formulaire PRONOTE ouvre maintenant la connexion ENT au lieu de naviguer vers
+l’accueil. Il choisit l’ENT déjà connecté et accepte aussi un lien PRONOTE hébergé
+comme point d’entrée SSO, lié à cet ENT. Les options facultatives sont repliées.
+Les anciens paramètres de formulaire sont effacés de l’adresse sans être renvoyés.
+Voir [le parcours et les limites](docs/MULTI_ENT.md).
+
+## 4.26.0 — ENT de plusieurs régions et PRONOTE depuis l’ENT
+
+La recherche d’établissement couvre les 19 configurations Skolengo du catalogue,
+avec filtre et nom du réseau. Un parcours ENT → PRONOTE, en bêta, peut aussi servir
+de source principale pour les cours, devoirs, notes et ICS des espaces Élève
+hébergés sur index-education.net. La connexion QR est retirée ; les connexions
+existantes restent utilisables. Les services absents (notamment mails/actualités
+pour le parcours PRONOTE) sont masqués. La couverture reste dépendante du portail
+et du SSO de l’établissement, et ne prétend pas couvrir tous les ENT.
+Voir [les parcours, limites et sources](docs/MULTI_ENT.md).
+
 # Passerelle · Skolengo → lien ICS privé
 
+L’interface de Passerelle reprend des composants sobres inspirés de Lapsus tout en gardant son logo, Manrope et ses couleurs. Voir [la présentation de l’application](docs/APP_STYLE.md).
+L’agenda possède une vue semaine avec grille horaire et une vue journée adaptée au téléphone. Voir [la présentation de l’agenda](docs/AGENDA.md).
+
 Portail : https://repere.84.235.226.127.sslip.io/agenda/
+
+## Travail, cours et documents · version 4.25.0
+
+Les devoirs sont regroupés par échéance. Les photos et PDF privés se consultent dans Passerelle, avec zoom, pages et téléchargement. Les fiches permettent de passer au cours suivant en gardant les notes en cours de saisie ; les formulaires et états vides sont plus directs. Voir [le fonctionnement et les limites](docs/DAILY_TOOLS.md).
+
+## Menu Plus et animations · version 4.24.0
+
+Plus présente une recherche, quatre raccourcis et deux groupes : Pour travailler, Suivi et aide. La navigation, les cartes, les groupes et les fiches disposent d’animations natives qui respectent la réduction du mouvement. Voir [le fonctionnement et les limites](docs/MORE_MOTION.md).
+
+## Parcours et présentation · version 4.23.0
+
+Connexion en trois étapes, erreurs avec reprise, réglages regroupés et agenda plus sobre. Le retour à une rubrique conserve sa position ; le suivi des devoirs propose une annulation réelle. Voir [le fonctionnement et les limites](docs/EXPERIENCE.md).
+
+## Recherche et fiches matières · version 4.22.0
+
+La loupe de l’en-tête et Ctrl/⌘ K ouvrent la recherche. Des filtres regroupent les matières, cours, devoirs et contrôles, noms de documents, notes, fiches et actualités déjà reçues. **Plus → Mes matières** réunit le travail à préparer, les prochains cours, les notes et les documents associés. Les favoris peuvent être rattachés explicitement à une matière. Voir [le fonctionnement et les limites](docs/DISCOVERY.md).
+
+## Connexion ENT directe pour Lapsus · version 4.19.0
+
+Lapsus peut utiliser le connecteur ENT et des données REST sans imposer une inscription Passerelle. Les profils techniques sont isolés des comptes du portail ; la fonction Cloudflare de Lapsus vérifie son utilisateur Supabase avant chaque appel. Le connecteur est préparé avec un réglage administrateur et une clé serveur, désactivé par défaut tant que son propriétaire ne l’a pas configuré. Voir [le fonctionnement et l’activation](docs/MANAGED_ENT.md).
+
+Les vérifications automatiques proches deviennent adaptatives : deux minutes pendant l’utilisation, cinq minutes en journée au repos, trente minutes la nuit. Le balayage annuel est quotidien et les données hors de la fenêtre proche sont conservées. Les tokens sont renouvelés près de leur expiration, dans le verrou de la source ; leur durée reste imposée par l’ENT.
+
+## Connexion des agendas à Lapsus · version 4.18.0
+
+Le service `https://mon-ent.pages.dev` peut demander à un utilisateur de partager ses cours, devoirs ou contrôles avec son accord. Passerelle propose une page de consentement, un échange OAuth avec PKCE S256 et des liens ICS dédiés, révocables depuis **Plus → Réglages → Mon compte → Applications connectées**. Les abonnements personnels restent indépendants. Les administrateurs peuvent désactiver Lapsus ou modifier sa callback dans le même écran.
+
+**Le développeur de Lapsus doit ajouter son bouton, la page de retour et l’adaptateur de compte.** Le [guide](docs/LAPSUS_INTEGRATION.md) et le pack public `/agenda/integrations/lapsus/` fournissent les fichiers et le contrat. Aucun code ni déploiement de Lapsus n’est modifié par cette livraison. Il s’agit d’un partage d’agendas, pas d’un fournisseur OpenID Connect. La tâche transports reste en pause.
+
+## Mon trajet, du lycée à l’agenda · version 4.17.0
+
+L’adresse de l’établissement prépare la destination, avec une recherche IGN/BAN et une correction possible. L’utilisateur choisit sa position au clic ou une adresse de départ ; la mémorisation est explicite et chiffrée. Plans et Google Maps ouvrent le trajet, et une durée connue peut être confirmée pour réserver le temps de transport dans la semaine et, volontairement, l’abonnement ICS. Les modifications gardent un identifiant stable ; les cours modifiés mettent les anciens trajets à revoir.
+
+Un connecteur Navitia et ses réglages administrateur sont prêts. **Aucun jeton fournisseur n’est configuré par cette livraison : le calcul intégré reste désactivé**, tandis que les liens et la réservation de temps restent utilisables. La couverture et le temps réel doivent être vérifiés avec le véritable accès du propriétaire. Aucun abonnement payant n’est souscrit. Voir [les usages, l’administration et les limites](docs/SMART_TRAVEL.md).
+
+## Le studio et les nouveautés · version 4.16.0
+
+Une bannière originale décline le passage vert et citron en papier découpé. Le studio public `/agenda/brand/campaign/` propose 24 visuels pour les réseaux sociaux en PNG, leurs SVG éditables, les légendes et les textes alternatifs. La famille Repères regroupe 56 icônes SVG, disponibles dans `/agenda/brand/icons-v2/preview.html` et intégrées dans les repères de l’application. Le logo et les icônes d’installation existants sont conservés.
+
+Les mises à jour majeures disposent d’un panneau animé depuis le bas, avec bannière et points forts. Il s’affiche après connexion, laisse la priorité à la prise en main, aux dialogues et à la saisie, puis sa fermeture est retenue par compte sur tous les appareils. Il reste accessible dans **Plus → Nouveautés de Passerelle**. Les changements de l’agenda ont leur propre entrée. Les correctifs mineurs ne réinitialisent pas l’annonce. Voir [le guide de publication](docs/MAJOR_RELEASES.md).
+
+## Partage iPhone par envoi direct · version 4.15.3
+
+Pour envoyer une photo ou un PDF depuis Raccourcis, conserver la méthode **POST** vers `https://repere.84.235.226.127.sslip.io/agenda/share` et l’en-tête **Accept: application/json**. Remplacer le corps **Formulaire** par **Fichier**, puis choisir **Entrée du raccourci** comme fichier à transmettre. Récupérer ensuite la clé **openURL** de la réponse et ouvrir cette URL. Le fichier est envoyé directement, sans champ multipart à configurer. L’envoi reste limité à un fichier de 30 Mo ; son enregistrement demande toujours une confirmation dans Passerelle. Le partage multipart du site reste compatible.
 
 ## Suppressions dans les agendas abonnés · version 4.15.1
 
@@ -91,7 +183,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now passerelle-ocr.socket
 ```
 
-Le socket Unix `/run/passerelle-ocr.sock` est réservé au compte système ubuntu (0600). Adapter `SocketUser` si le service principal utilise un autre utilisateur. Le processus OCR ne reçoit que les octets de l’image. La limite du proxy nginx pour `/agenda/` est de 12 Mo ; les routes applicatives conservent leurs limites propres, et le JSON reste limité à 128 Ko. Les favoris chiffrés vivent dans `data/favorites` et doivent être sauvegardés avec `data/state.json` et `data/master.key` ; ne jamais distribuer ce répertoire dans une archive du code.
+Le socket Unix `/run/passerelle-ocr.sock` est réservé au compte système ubuntu (0600). Adapter `SocketUser` si le service principal utilise un autre utilisateur. Le processus OCR ne reçoit que les octets de l’image. La limite du proxy nginx pour `/agenda/` est de 32 Mio pour les documents de 30 Mio et leur enveloppe ; les routes applicatives conservent leurs limites propres, et le JSON reste limité à 128 Ko. Les favoris chiffrés vivent dans `data/favorites` et doivent être sauvegardés avec `data/state.json` et `data/master.key` ; ne jamais distribuer ce répertoire dans une archive du code.
 
 ## Navigation simplifiée · version 4.10.0
 
@@ -364,3 +456,23 @@ Les préférences permettent de masquer et ordonner les blocs de l’accueil. Un
 « Mon ENT » vérifie les droits et la disponibilité des services avec la connexion existante. Les refus explicites et l’erreur Skolengo `NO_SCHOOLING_SOLUTION_CONFIGURED` désactivent seulement les rubriques concernées. Une panne temporaire, une expiration de connexion ou une liste vide ne suffit pas à supprimer une rubrique. Les contrôles ne lisent pas les fils de messagerie et ne les marquent pas comme lus. Les états sont privés, bornés et conservés trente minutes en mémoire par compte/élève/connexion ; un bouton permet de revérifier et réactiver les services redevenus disponibles. Les détails non autorisés (historique d’absence, appréciations non publiées, etc.) ne proposent pas de bouton actif.
 
 La vraie connexion du lycée des Horizons confirme : notes, bulletins et absences renvoient « aucune solution de vie scolaire configurée » et sont masqués ; messages, actualités, profil, contenus des séances et détails des devoirs restent disponibles. Les outils personnels continuent de fonctionner indépendamment de ces rubriques. La vérification n’a affiché aucun contenu privé, modifié aucun état de production ou jeton, ni envoyé de mail.
+
+### Agenda et connexion Lapsus · 4.20
+
+L’agenda regroupe visuellement les séances adjacentes identiques, indique le cours actuel et les changements depuis la dernière consultation, ouvre les cours avec leurs devoirs de la semaine et notes personnelles, et se parcourt par glissement sur mobile. Les icônes de lecture, horaire, note, salle, mail et actualité utilisent le même tracé. Les objets source et UID ICS sont conservés. Voir [la présentation de l’agenda](docs/AGENDA.md).
+
+Le connecteur Lapsus géré peut recevoir la messagerie et les actualités de l’ENT en plus des cours, devoirs et contrôles. Les permissions sont explicites, les anciens droits ne sont pas élargis automatiquement et les références privées restent liées à la connexion. Le kit Cloudflare comprend les listes, lectures intégrales, pièces jointes et pagination, sans nouveau schéma Supabase. Voir [le connecteur ENT](docs/MANAGED_ENT.md). Le déploiement du kit sur le projet Lapsus et ses secrets restent à effectuer par son propriétaire.
+
+La version 4.20.1 ajoute le bilan concret des horaires depuis la dernière consultation et les cases de validation des devoirs dans le panneau de cours. Les états restent réversibles et communs avec la page Devoirs.
+
+La version 4.20.2 simplifie l’agenda : date persistante au défilement, flèches adaptées à la vue journée/semaine, retour à aujourd’hui, cartes hiérarchisées et pauses courtes entre les cours. Voir [la présentation de l’agenda](docs/AGENDA.md).
+
+La version 4.20.3 distingue les récréations de quinze minutes et les pauses déjeuner entre 11 h et 14 h, en conservant les horaires réels et les rendez-vous personnels.
+
+La version 4.20.4 remplace les emojis des matières par des pictogrammes au trait dans les vues journée/semaine et les détails de cours, en conservant les couleurs et les données source.
+
+## Statut du système
+
+La page `/agenda/status/` présente l’état public des services, avec actualisation toutes les trente secondes et distinction des signaux observés, pauses, maintenance et services non activés. Elle est accessible depuis le pied de page et l’administration. Les données de compte restent privées. Le déploiement Nginx dédié lui permet de signaler un arrêt du seul service Passerelle ; voir [le suivi du système](docs/SYSTEM_STATUS.md).
+
+La version 4.21.1 enrichit la page de statut avec des graphiques de réponse et d’états sur 1/6/24 h, une médiane et des compteurs de contrôles. Le suivi indépendant conserve uniquement des mesures publiques pendant 24 h, y compris lors d’un arrêt du backend ; aucun historique antérieur n’est inventé.

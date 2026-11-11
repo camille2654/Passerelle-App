@@ -4,6 +4,7 @@ import { random, digest } from './store.js';
 import { PublicError, dateWindow } from './sync.js';
 import { parisDate, shiftDate, userWork, subjectList } from './work.js';
 import {calendarAtMinute} from './personal-calendar-worker.js';
+import {travelCalendarRows} from './travel-calendar.js';
 
 export function validDate(value) {
   const date = String(value || '');
@@ -22,12 +23,12 @@ export function weekView(user, date, now = Date.now(), personalCalendars = null)
   if(personalCalendars)try{personal=personalCalendars.view(user,start,shiftDate(start,6));}catch{personal={events:[],conflicts:[],complete:false,warning:'Les rendez-vous personnels ne sont pas disponibles pour cette période.'};}
   const days = Array.from({ length: 7 }, (_, i) => {
     const day = shiftDate(start, i);
-    const courses = Object.values(user.calendarEvents || {}).filter(e => e.date === day).sort((a, b) => a.start.localeCompare(b.start)).map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, location: e.location, cancelled: e.cancelled, subject: e.subject }));
+    const courses = Object.values(user.calendarEvents || {}).filter(e => e.date === day).sort((a, b) => a.start.localeCompare(b.start)).map(e => ({ id: e.id, title: e.title, start: e.start, end: e.end, location: e.location, cancelled: e.cancelled, subject: e.subject, description: e.description || '' }));
     const lower=Date.parse(calendarAtMinute(day,0)),upper=Date.parse(calendarAtMinute(shiftDate(day,1),0));
     const personalEvents=personal.events.filter(event=>Date.parse(event.start)<upper&&Date.parse(event.end)>lower).map(event=>({...event,conflict:personal.conflicts.some(conflict=>conflict.eventId===event.id&&conflict.date===day)}));
-    return { date: day, personalEvents, events: schoolEvents(user).filter(e=>e.date===day&&!e.cancelled).map(({id,title,start,end,allDay,location,cancelled})=>({id,title,start,end,allDay,location,cancelled})), inSchoolYear: day >= window.start && day <= window.end, courses, work: work.filter(w => w.due === day && !w.done), study: (user.studySessions || []).filter(s => s.day === day) };
+    return { date: day, personalEvents,travelEvents:travelCalendarRows(user,{date:day}), events: schoolEvents(user).filter(e=>e.date===day&&!e.cancelled).map(({id,title,start,end,allDay,location,cancelled})=>({id,title,start,end,allDay,location,cancelled})), inSchoolYear: day >= window.start && day <= window.end, courses, work: work.filter(w => w.due === day && !w.done), study: (user.studySessions || []).filter(s => s.day === day) };
   });
-  return { start, end: shiftDate(start, 6), days, personalCalendarWarning:personal.warning, personalCalendarComplete:personal.complete, lastSync: user.lastSync || null, warning: user.lastError || (!user.lastSync ? 'Connectez votre ENT pour afficher les cours publiés.' : now - user.lastSync > 30 * 60000 ? 'Le dernier emploi du temps date de plus de 30 minutes. Vérifiez votre connexion ENT.' : null) };
+  return { start, end: shiftDate(start, 6), days, work:work.filter(item=>item.due>=start&&item.due<=shiftDate(start,6)), notes: (user.courseNotes||[]).filter(note=>note.studentId===(user.studentId||null)).map(note=>({id:note.id,text:note.text,subjectLabel:note.subjectLabel,subjectKey:subjectList(user).find(subject=>subject.label===note.subjectLabel)?.key,done:!!note.done})), personalCalendarWarning:personal.warning, personalCalendarComplete:personal.complete, lastSync: user.lastSync || null, warning: user.lastError || (!user.lastSync ? 'Connectez votre ENT pour afficher les cours publiés.' : now - user.lastSync > 30 * 60000 ? 'Le dernier emploi du temps date de plus de 30 minutes. Vérifiez votre connexion ENT.' : null) };
 }
 export function bagView(user, date) {
   const subjects = subjectList(user), keys = new Set(Object.values(user.calendarEvents || {}).filter(e => !e.cancelled && e.date === date).map(e => e.subject?.key).filter(Boolean));
@@ -52,7 +53,7 @@ export function revisionPlan(user, input, now = Date.now(), personalCalendars = 
   const personal=personalCalendars?personalCalendars.view(user,start,shiftDate(exam.due,-1)):{events:[],complete:true};
   if(!personal.complete)throw new PublicError('Actualisez vos calendriers personnels avant de planifier les révisions : leurs disponibilités ne peuvent pas être confirmées.',409);
   calendarWarning=personal.warning||null;
-  const blocks=[...Object.values(user.calendarEvents||{}).filter(event=>!event.cancelled),...schoolEvents(user).filter(event=>!event.cancelled),...personal.events.filter(event=>event.busy),...retained.filter(session=>!session.done&&session.start&&session.end)];
+  const blocks=[...Object.values(user.calendarEvents||{}).filter(event=>!event.cancelled),...schoolEvents(user).filter(event=>!event.cancelled),...travelCalendarRows(user,{start,end:shiftDate(exam.due,-1),includeReview:false}),...personal.events.filter(event=>event.busy),...retained.filter(session=>!session.done&&session.start&&session.end)];
   const free=Object.fromEntries(days.map(day=>{
     const lower=Math.max(Date.parse(calendarAtMinute(day,8*60)),day===today?Math.ceil(now/60000)*60000:0),upper=Date.parse(calendarAtMinute(day,21*60));
     const busy=blocks.map(event=>[Math.max(lower,Date.parse(event.start)),Math.min(upper,Date.parse(event.end))]).filter(([a,b])=>Number.isFinite(a)&&Number.isFinite(b)&&b>a).sort((a,b)=>a[0]-b[0]);

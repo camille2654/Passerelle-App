@@ -1,0 +1,1398 @@
+diff --git a/README.md b/README.md
+index 362a5e2..ba45624 100644
+--- a/README.md
++++ b/README.md
+@@ -2,6 +2,10 @@
+ 
+ Lapsus est une application web de suivi scolaire. Elle regroupe l'emploi du temps, les devoirs et les évaluations dans une interface adaptée aux ordinateurs et aux mobiles.
+ 
++## Connexion ENT via Passerelle
++
++Cette branche ajoute une connexion ENT directe et une fonction Cloudflare sécurisée. Voir [le guide de déploiement et les variables à configurer](docs/PASSERELLE_ENT.md). Les comptes Passerelle et les imports ICS existants sont conservés.
++
+ ## Fonctionnalités
+ 
+ ### Tableau de bord
+@@ -94,4 +98,6 @@ Le projet n'utilise pas de framework front-end ni d'étape de compilation.
+ 1. Clone le dépôt :
+ 
+    ```bash
+-   git clone https://github.com/nonovernaison21/mon-ent.git
+\ No newline at end of file
++   git clone https://github.com/nonovernaison21/mon-ent.git
++
++Extension ENT Passerelle 4.20 : la connexion proposée inclut aussi les mails et actualités du lycée, avec lecture intégrale, documents et pagination. Les anciennes connexions doivent être reconnectées pour ajouter ces deux permissions. Voir `docs/PASSERELLE_ENT.md` pour le déploiement des Pages Functions et les variables côté serveur. Aucun déploiement distant n’est effectué par la simple présence de ces fichiers.
+diff --git a/_redirects b/_redirects
+new file mode 100644
+index 0000000..b8aa48e
+--- /dev/null
++++ b/_redirects
+@@ -0,0 +1 @@
++/passerelle/ent/callback /index.html 200
+diff --git a/_routes.json b/_routes.json
+new file mode 100644
+index 0000000..45d1c2e
+--- /dev/null
++++ b/_routes.json
+@@ -0,0 +1,5 @@
++{
++  "version": 1,
++  "include": ["/api/passerelle/*"],
++  "exclude": []
++}
+diff --git a/app.js b/app.js
+index fc2ec3e..6807ccf 100644
+--- a/app.js
++++ b/app.js
+@@ -1,5 +1,8 @@
+ 'use strict';
+ 
++// Consume this callback before Supabase can interpret its unrelated authorization code.
++let passerelleReturn=window.LapsusPasserelle.captureCallback(location,history);
++
+ const CONFIG={
+   RELAY_URL:'https://ent-relais.nonovernaison21.workers.dev',
+   SUPABASE_URL:'https://wrrfblhxomsegdyadens.supabase.co',
+@@ -162,6 +165,10 @@ const ICON={
+   warn:'<path d="M12 4 3 20h18z"/><path d="M12 10v4M12 17.5v.01"/>',
+   trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+   check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',
++  mail:'<rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="m4 7 8 6 8-6"/>',
++  news:'<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M8 8h8M8 12h8M8 16h4"/>',
++  file:'<path d="M14 3H7a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V9l-6-6Zm0 0v6h6M8 13h8m-8 4h5"/>',
++  arrow:'<path d="M5 12h14m-5-5 5 5-5 5"/>',
+   school:'<path d="M3 9.5 12 5l9 4.5-9 4.5z"/><path d="M7 12v4.2c0 1.2 2.2 2.3 5 2.3s5-1.1 5-2.3V12M21 9.5V15"/>',
+   set:'<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'
+ };
+@@ -180,8 +187,9 @@ store.set('view','home');
+ let mode=store.get('mode','week');
+ let cursor=startOfDay(new Date());
+ let events=[];
++let managedConnection=null,managedCourses=[],managedWork=[],managedCoverage=[],managedNotice='',managedAvailable=true,managedBusy=null,managedEpoch=0,managedSchool={},managedDetailSerial=0;
+ let hwFeedEvents=[],evalFeedEvents=[],hw=[],autoDone={},ctrlDone={},ov={},words=DEFAULT_WORDS.slice(),colors={};
+-function resetState(){lyceePrefs=mergePrefs(null);mails=[];news=[];colors={};events=[];hwFeedEvents=[];evalFeedEvents=[];hw=[];autoDone={};ctrlDone={};ov={};words=DEFAULT_WORDS.slice();}
++function resetState(){managedEpoch++;managedSchool={};managedDetailSerial++;managedConnection=null;managedCourses=[];managedWork=[];managedCoverage=[];managedNotice='';managedAvailable=true;managedBusy=null;lyceePrefs=mergePrefs(null);mails=[];news=[];colors={};events=[];hwFeedEvents=[];evalFeedEvents=[];hw=[];autoDone={};ctrlDone={};ov={};words=DEFAULT_WORDS.slice();}
+ function loadState(){
+   resetState();
+   hwFeedEvents=store.get('hwFeedEvents',[]).map(reviveEvent);
+@@ -189,9 +197,12 @@ function loadState(){
+   hw=store.get('homework',[]);autoDone=store.get('hwAutoDone',{});ctrlDone=store.get('ctrlDone',{});
+   ov=store.get('overrides',{});words=store.get('hwWords',DEFAULT_WORDS.slice());colors=store.get('subjectColors',{});
+   lyceePrefs=mergePrefs(store.get('lyceePrefs',null));mails=store.get('mails',[]);news=store.get('news',[]);
++  const managed=store.get('managedENT',null);
++  if(managed&&managed.connection){try{managedConnection=LapsusPasserelle.metadata(managed.connection);managedCourses=(managed.courses||[]).map(reviveEvent);managedWork=managed.work||[];managedCoverage=managed.coverage||[];}catch(e){managedConnection=null;managedCourses=[];managedWork=[];managedCoverage=[];}}
+   const c=store.get('icsText','');if(c){try{loadICS(c);}catch(e){console.error(e);}}
+   const ch=store.get('hwICStext','');
+   if(ch){try{hwFeedEvents=parseICS(ch).events.sort((a,b)=>a.start-b.start);store.set('hwFeedEvents',hwFeedEvents);}catch(e){console.error(e);}}
++  if(managedHas('courses')){events=managedCourses.slice();classify();}
+   const ce=store.get('evalICStext','');
+   if(ce){try{evalFeedEvents=parseICS(ce).events.sort((a,b)=>a.start-b.start);store.set('evalFeedEvents',evalFeedEvents);}catch(e){console.error(e);}}
+ }
+@@ -216,6 +227,7 @@ function classify(){
+   buildRx();
+   for(const e of events){
+     e.key=(e.uid||e.title)+'|'+e.start.getTime();
++    if(e.managed){e.kind='course';continue;}
+     const o=ov[e.key];
+     if(o){e.kind=o;continue;}
+     const t=norm(e.title);
+@@ -239,11 +251,12 @@ function feedItemFromEvent(e,type){
+   return {id:(e.uid||e.title)+'|'+e.start.getTime(),title:cap(title||e.title||'(sans titre)'),subject:subject||'Matière non précisée',due:isoDay(e.start),notes:e.description||'',allDay:e.allDay,start:e.start,end:e.end,type};
+ }
+ function hwItems(){
++  if(managedHas('homework'))return managedWork.filter(h=>h.type==='hw').map(h=>({...h,done:!!autoDone[h.id]})).concat(hw.map(h=>({...h,auto:false})));
+   const imported=hwFeedEvents.filter(e=>e.status!=='CANCELLED').map(e=>{const x=feedItemFromEvent(e,'hw');return Object.assign({auto:true,done:!!autoDone[x.id]},x);});
+   const man=hw.map(h=>Object.assign({},h,{auto:false}));
+   return imported.concat(man);
+ }
+-function evalItems(){return evalFeedEvents.filter(e=>e.status!=='CANCELLED').map(e=>{const x=feedItemFromEvent(e,'eval');x.done=!!ctrlDone[x.id];return x;}).sort(byDue);}
++function evalItems(){if(managedHas('exams'))return managedWork.filter(h=>h.type==='eval').map(h=>({...h,done:!!ctrlDone[h.id]})).sort(byDue);return evalFeedEvents.filter(e=>e.status!=='CANCELLED').map(e=>{const x=feedItemFromEvent(e,'eval');x.done=!!ctrlDone[x.id];return x;}).sort(byDue);}
+ function todoItems(){
+   const allHw=hwItems().filter(h=>!h.done);
+   const ctrls=evalItems().filter(c=>!c.done&&parseISO(c.due)>=startOfDay(new Date()));
+@@ -264,7 +277,7 @@ function groupedControls(items){return groupItems(items).map(g=>`<section class=
+ 
+ function loadICS(text){
+   const r=parseICS(text);
+-  events=r.events.sort((a,b)=>a.start-b.start);
++  events=(managedHas('courses')?managedCourses.slice():r.events).sort((a,b)=>a.start-b.start);
+   classify();
+   addGhosts();
+ }
+@@ -273,7 +286,7 @@ function loadICS(text){
+ const courseKey=e=>norm(e.title)+'|'+e.start.getTime()+'|'+e.end.getTime();
+ function addGhosts(){
+   events=events.filter(e=>!e.ghost);
+-  if(!store.get('ghostOn',true))return;
++  if(managedHas('courses')||!store.get('ghostOn',true))return;
+   const g=store.get('ghostCourses',{}),now=Date.now();
+   const have=new Set(events.filter(e=>e.kind==='course').map(courseKey));
+   for(const k in g){
+@@ -283,6 +296,7 @@ function addGhosts(){
+   events.sort((a,b)=>a.start-b.start);
+ }
+ function trackVanished(){
++  if(managedHas('courses'))return;
+   if(!store.get('ghostOn',true)){store.set('ghostCourses',{});addGhosts();return;}
+   const now=Date.now(),real=events.filter(e=>!e.ghost&&e.kind==='course'&&!e.allDay);
+   if(!real.length)return;                                   // calendrier vide : on ne touche à rien
+@@ -337,6 +351,7 @@ async function fetchCalendarUrl(url){
+ }
+ async function refresh(){
+   if(!session())return;
++  if(managedConnection?.connectionId){await refreshManaged({manual:true});return;}
+   const feeds=[
+     {key:'icsUrl',cache:'icsText',name:'emploi du temps',apply:text=>{loadICS(text);}},
+     {key:'homeworkUrl',cache:'hwICStext',name:'devoirs',apply:text=>{hwFeedEvents=parseICS(text).events.sort((a,b)=>a.start-b.start);store.set('hwFeedEvents',hwFeedEvents);}},
+@@ -415,9 +430,9 @@ function profileBanner(){
+   return `<div class="pbanner"><div class="pbi">${svg('school',22)}</div><div class="pbt"><strong>Complète ton profil</strong><span>Ajoute ${esc(txt)} pour personnaliser Lapsus.</span></div><button class="btn primary" data-act="view" data-v="lycee-profil">Compléter</button><button class="lnk2 pbx" data-act="pbdismiss" aria-label="Masquer pour l’instant" title="Masquer pour l’instant">×</button></div>`;
+ }
+ function viewHome(){
+-  if(!events.length&&!hw.length)return `<h1>Bienvenue</h1>
+-    <p class="sub">Aucun calendrier chargé pour l'instant.</p>${profileBanner()}
+-    <div class="row"><button class="btn primary" data-act="view" data-v="set">Ajouter mon lien ICS</button><button class="btn" data-act="demo">Voir un exemple</button></div>`;
++  if(!events.length&&!hw.length&&!managedWork.length)return `<h1>${managedConnection?.connectionId?'Ton espace est prêt':'Bienvenue'}</h1>
++    <p class="sub">${managedConnection?.connectionId?'Ton ENT est relié à Lapsus. Les données reçues apparaîtront ici.':"Connecte ton ENT pour retrouver ton emploi du temps et tes devoirs."}</p>${profileBanner()}
++    <div class="row"><button class="btn primary" data-act="view" data-v="connexion-ent">${managedConnection?.connectionId?'Voir ma connexion ENT':'Connecter mon ENT'}</button><button class="btn" data-act="demo">Voir un exemple</button></div>`;
+   const now=new Date();
+   const act=events.filter(e=>e.kind==='course'&&!e.allDay&&e.status!=='CANCELLED');
+   const cur=act.find(e=>e.start<=now&&e.end>now);
+@@ -634,25 +649,26 @@ function shownHw(){
+ }
+ function shownMails(){
+   const P=lyceePrefs.mail;
+-  const ms=mails.filter(m=>!P.unread||!m.read);
++  const ms=schoolMails().filter(m=>!P.unread||!m.read);
+   ms.sort(P.sort==='old'?(a,b)=>a.at-b.at:(a,b)=>b.at-a.at);
+   return ms;
+ }
+ function shownNews(){
+   const P=lyceePrefs.news;
+-  const ns=news.slice();
++  const ns=schoolNews().slice();
+   ns.sort(P.sort==='old'?(a,b)=>a.at-b.at:(a,b)=>b.at-a.at);
+   return ns;
+ }
+ function mailRow(m,full){
+   const P=lyceePrefs.mail;
+-  const head=`<div class="mh"><span class="mf">${esc(m.from)}</span><span class="md">${esc(fmtMailDate(m.at))}</span></div><div class="ms">${esc(m.subject)}</div>${P.preview&&m.preview?`<div class="mp">${esc(m.preview)}</div>`:''}`;
++  const head=`<div class="mh"><span class="mf">${esc(m.from)}</span><span class="md">${m.at?esc(fmtMailDate(m.at)):'Date non précisée'}</span></div><div class="ms">${esc(m.subject)}</div>${P.preview&&m.preview?`<div class="mp">${esc(m.preview)}</div>`:''}`;
++  if(m.managed)return `<button type="button" class="mail ent-mail ${m.read?'':'unread'}" data-act="ent-detail" data-ref="${esc(m.ref)}" data-section="messages">${head}</button>`;
+   if(!full)return `<div class="mail${m.read?'':' unread'}">${head}</div>`;
+   return `<details class="mail${m.read?'':' unread'}"><summary>${head}</summary>${m.body?`<div class="mbody">${esc(m.body)}</div>`:''}</details>`;
+ }
+ function newsRow(n,full){
+   const P=lyceePrefs.news,img=P.images?safeImg(n.image):'';
+-  return `<article class="news${img?'':' noimg'}${full?' full':''}">${img?`<img src="${esc(img)}" alt="" loading="lazy">`:''}<div><h3 class="nt">${esc(n.title)}</h3><p class="nd">${esc(cap(new Date(n.at).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})))}</p>${n.summary?`<p class="ns">${esc(n.summary)}</p>`:''}</div></article>`;
++  return `<article class="news${img?'':' noimg'}${full?' full':''}">${img?`<img src="${esc(img)}" alt="" loading="lazy">`:''}<div><h3 class="nt">${esc(n.title)}</h3><p class="nd">${n.at?esc(cap(new Date(n.at).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'}))):'Date non précisée'}</p>${n.summary?`<p class="ns">${esc(n.summary)}</p>`:''}${n.managed?`<button type="button" class="lnk2 ent-read-news" data-act="ent-detail" data-ref="${esc(n.ref)}" data-section="news">Lire l’actualité ${svg('arrow',15)}</button>`:''}</div></article>`;
+ }
+ function viewLycee(){
+   const P=lyceePrefs,pf=P.profile;
+@@ -663,26 +679,26 @@ function viewLycee(){
+   ${secHead('Devoirs')}
+   ${list(hws.map(hwRow).join(''),'Aucun devoir à venir.')}
+   <button class="btn more" data-act="view" data-v="hw">Afficher tous les devoirs</button>
+-  ${secHead('Mails')}
+-  ${list(ms.map(m=>mailRow(m,false)).join(''),P.mail.unread&&mails.length?'Aucun mail non lu.':'Aucun mail pour l’instant. Ils arriveront ici avec la connexion à l’ENT.')}
+-  <button class="btn more" data-act="view" data-v="mails">Afficher tous les mails</button>
+-  ${secHead('Actualités')}
+-  ${list(ns.map(n=>newsRow(n,false)).join(''),'Aucune actualité pour l’instant. Elles arriveront ici avec la connexion à l’ENT.')}
+-  <button class="btn more" data-act="view" data-v="news">Afficher toutes les actualités</button>`;
++  ${secHead('Mails')}${managedSchoolNotice('messages')}
++  ${list(ms.map(m=>mailRow(m,false)).join(''),P.mail.unread&&mails.length?'Aucun mail non lu.':'Aucun mail à afficher pour le moment.')}
++  <button class="btn more" data-act="view" data-v="mails" ${managedSchool.messages?.available===false&&!mails.length?'disabled':''}>Afficher tous les mails</button>
++  ${secHead('Actualités')}${managedSchoolNotice('news')}
++  ${list(ns.map(n=>newsRow(n,false)).join(''),'Aucune actualité à afficher pour le moment.')}
++  <button class="btn more" data-act="view" data-v="news" ${managedSchool.news?.available===false&&!news.length?'disabled':''}>Afficher toutes les actualités</button>`;
+ }
+ function viewMails(){
+   const ms=shownMails();
+   return `<div class="sub-header"><button class="btn" data-act="view" data-v="lycee">‹ Retour à Mon lycée</button></div><h1>Mails</h1>
+-  <p class="sub">${mails.length?`${ms.length} mail${ms.length>1?'s':''}${lyceePrefs.mail.unread?' non lus':''}`:'Tes mails de l’ENT.'}</p>
+-  ${list(ms.map(m=>mailRow(m,true)).join(''),lyceePrefs.mail.unread&&mails.length?'Aucun mail non lu.':'Aucun mail pour l’instant. Ils arriveront ici avec la connexion à l’ENT.')}
+-  <p class="foot">Affichage réglable dans Réglages › Mon lycée › Mails.</p>`;
++  <p class="sub">${schoolMails().length?`${ms.length} mail${ms.length>1?'s':''}${lyceePrefs.mail.unread?' non lus':''}`:'Tes mails de l’ENT.'}</p>
++  ${managedSchoolNotice('messages')}${list(ms.map(m=>mailRow(m,true)).join(''),lyceePrefs.mail.unread&&schoolMails().length?'Aucun mail non lu.':'Aucun mail à afficher pour le moment.')}
++  ${managedSchoolMore('messages')}<p class="foot">Affichage réglable dans Réglages › Mon lycée › Mails.</p>`;
+ }
+ function viewNews(){
+   const ns=shownNews();
+   return `<div class="sub-header"><button class="btn" data-act="view" data-v="lycee">‹ Retour à Mon lycée</button></div><h1>Actualités</h1>
+-  <p class="sub">${news.length?`${ns.length} actualité${ns.length>1?'s':''}`:'Les actualités de ton lycée.'}</p>
+-  ${list(ns.map(n=>newsRow(n,true)).join(''),'Aucune actualité pour l’instant. Elles arriveront ici avec la connexion à l’ENT.')}
+-  <p class="foot">Affichage réglable dans Réglages › Mon lycée › Actualités.</p>`;
++  <p class="sub">${schoolNews().length?`${ns.length} actualité${ns.length>1?'s':''}`:'Les actualités de ton lycée.'}</p>
++  ${managedSchoolNotice('news')}${list(ns.map(n=>newsRow(n,true)).join(''),'Aucune actualité à afficher pour le moment.')}
++  ${managedSchoolMore('news')}<p class="foot">Affichage réglable dans Réglages › Mon lycée › Actualités.</p>`;
+ }
+ 
+ // ---------- Réglages de Mon lycée ----------
+@@ -748,6 +764,9 @@ function viewConnexionEnt(){
+   const url=store.get('icsUrl',''),homeworkUrl=store.get('homeworkUrl',''),controlsUrl=store.get('controlsUrl','');
+   return `<div class="sub-header"><button class="btn" data-act="view" data-v="set">‹ Retour aux réglages</button></div>
+   <h1>ENT</h1>
++  ${managedEntPanel()}
++  <details class="ent-manual"><summary>Liens ICS et import manuel</summary>
++  ${managedConnection?.connectionId?'<p class="m">La connexion ENT alimente les catégories choisies. Tes liens et fichiers restent enregistrés pour une utilisation après déconnexion.</p>':''}
+   <form class="panel" data-form="url">
+     <label class="fl" for="icsUrl">Lien ICS de l’emploi du temps</label>
+     <div class="row"><input id="icsUrl" type="url" placeholder="https://... ou webcal://..." value="${esc(url)}" autocomplete="off"><button class="btn primary">Enregistrer et synchroniser</button></div>
+@@ -767,7 +786,7 @@ function viewConnexionEnt(){
+     <label class="chk lpchk"><input type="checkbox" data-ghost="1" ${store.get('ghostOn',true)?'checked':''}> Afficher comme annulés les cours qui disparaissent du calendrier</label>
+     <p class="m">Si ton ENT retire un cours annulé de l’emploi du temps, Lapsus le garde dans l’agenda, barré avec « Annulé ». Les cours déplacés ou remplacés ne sont pas concernés.</p>
+   </div>
+-  <div class="panel" style="margin-top:12px">
++  </details><div class="panel" style="margin-top:12px">
+     <p class="m"><a href="https://repere.84.235.226.127.sslip.io/agenda/" target="_blank" rel="noopener" class="lnk">Passerelle — Espace scolaire</a></p>
+   </div>`;
+ }
+@@ -924,16 +943,21 @@ async function wipeAll(){
+ 
+ async function deleteAccountModal(){
+   try {
++    const deletionNamespace=NS;
+     showLoader('Suppression du compte…', 'Nettoyage des données.');
+     if(user && sb){
++      const owner=user.id,epoch=managedEpoch;
++      await managedClient.disconnectCurrent({knownConnection:!!managedConnection?.connectionId});
++      if(!managedCurrent(owner,epoch))throw new Error('Le compte connecté a changé. Relance la suppression depuis le compte concerné.');
++      managedEpoch++;managedBusy=null;setManagedConnection({connectionId:null},true);
+       await sb.from('homework').delete().eq('user_id', user.id);
+       await sb.from('done_items').delete().eq('user_id', user.id);
+       await sb.from('settings').delete().eq('user_id', user.id);
+       // supprime aussi le compte de connexion (fonction SQL delete_my_account)
+-      try{await sb.rpc('delete_my_account');}catch(e){}
++      const result=await sb.rpc('delete_my_account');if(result?.error)throw result.error;
+       try{await sb.auth.signOut();}catch(e){}
+     }
+-    try{Object.keys(localStorage).filter(k=>NS&&k.startsWith(NS)).forEach(k=>localStorage.removeItem(k));}catch(x){}
++    try{Object.keys(localStorage).filter(k=>deletionNamespace&&k.startsWith(deletionNamespace)).forEach(k=>localStorage.removeItem(k));}catch(x){}
+     leaveApp();
+     infoModal('check','Compte supprimé','Ton compte et toutes tes données ont bien été supprimés.');
+   } catch(err) {
+@@ -951,7 +975,7 @@ let user=null;
+ const session=()=>user;
+ let sb=null;
+ try{sb=window.supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,experimental:{passkey:true}}});}catch(e){console.error(e);}
+-const hasFeeds=()=>store.get('icsUrl','')||store.get('homeworkUrl','')||store.get('controlsUrl','');
++const hasFeeds=()=>managedConnection?.connectionId||store.get('icsUrl','')||store.get('homeworkUrl','')||store.get('controlsUrl','');
+ async function remote(p){
+   if(!user||!sb)return;
+   try{const r=await p;if(r&&r.error)throw r.error;}
+@@ -1005,6 +1029,152 @@ async function pullRemote(){
+   }catch(e){setStatus('Synchronisation du compte impossible : '+(e.message||e),true);}
+ }
+ 
++
++// Passerelle is a data connector; the signed-in Lapsus account remains the owner.
++const managedClient=LapsusPasserelle.createClient({getAccessToken:async()=>{
++  if(!user||!sb)return null;
++  const result=await sb.auth.getSession();
++  return result.data?.session?.user?.id===user.id?result.data.session.access_token:null;
++}});
++function managedHas(scope){return !!managedConnection?.connectionId&&managedConnection.scopes.includes(scope);}
++function saveManagedCache(){if(user&&NS)store.set('managedENT',managedConnection?.connectionId?{connection:managedConnection,courses:managedCourses,work:managedWork,coverage:managedCoverage}:null);}
++function rebuildManagedView(){
++  if(managedHas('courses')){events=managedCourses.map(reviveEvent);classify();}
++  else{const cached=store.get('icsText','');if(cached){try{loadICS(cached);}catch(e){events=[];}}else events=[];}
++}
++function setManagedConnection(value,reset=false){
++  const next=LapsusPasserelle.metadata(value);
++  const changed=reset||next.connectionId!==managedConnection?.connectionId||next.sourceVersion!==managedConnection?.sourceVersion;
++  managedConnection=next.connectionId?next:null;
++  if(changed){managedCourses=[];managedWork=[];managedCoverage=[];managedSchool={};if(document.querySelector('[data-ent-content]'))closeModal();}
++  for(const section of ['messages','news'])if(!next.scopes?.includes(section))delete managedSchool[section];
++  if(!managedHas('courses'))managedCourses=[];
++  managedWork=managedWork.filter(item=>managedHas(item.type==='eval'?'exams':'homework'));
++  rebuildManagedView();saveManagedCache();
++}
++function schoolMails(){return [...(managedHas('messages')?(managedSchool.messages?.items||[]).map(item=>({id:'ent:'+item.ref,ref:item.ref,managed:true,from:item.sender,subject:item.title,preview:item.preview,at:Date.parse(item.date)||0,read:item.read===true})):[]),...mails];}
++function schoolNews(){return [...(managedHas('news')?(managedSchool.news?.items||[]).map(item=>({id:'ent:'+item.ref,ref:item.ref,managed:true,title:item.title,summary:item.preview,at:Date.parse(item.date)||0})):[]),...news];}
++function managedSchoolNotice(section){
++  if(!managedConnection?.connectionId)return '';
++  const state=managedSchool[section];
++  if(!managedHas(section))return '<p class="ent-notice">Reconnecte ton ENT pour ajouter '+(section==='messages'?'les mails':'les actualités')+' à cette connexion.</p>';
++  return state?.warning?`<p class="ent-notice" role="status">${esc(state.warning)}</p>`:'';
++}
++function managedSchoolMore(section){const state=managedSchool[section];return managedHas(section)&&state?.available&&state.more?`<button type="button" class="btn more" data-act="ent-more" data-section="${section}">Afficher ${section==='messages'?'les mails précédents':'plus d’actualités'}</button>`:'';}
++async function readManagedSection(section,{offset=0,force=false}={}){
++  if(!user||!managedHas(section))return;
++  const owner=user.id,epoch=managedEpoch,id=managedConnection.connectionId,version=managedConnection.sourceVersion;
++  try{
++    const value=await managedClient.school(id,section,{...(offset?{offset:String(offset)}:{}),...(force?{refresh:'1'}:{})});
++    if(!managedCurrent(owner,epoch)||managedConnection?.connectionId!==id||managedConnection.sourceVersion!==version)return;
++    if(value.sourceVersion!==version){setManagedConnection(value);throw new Error('Le profil ENT a changé. Actualise sa nouvelle copie.');}
++    if(!value.available){managedSchool[section]={...value,items:[],pages:{},more:false,lastOffset:0};return;}
++    const previous=managedSchool[section],pages={...(force?{}:previous?.pages),[offset]:value.items};
++    const offsets=Object.keys(pages).map(Number).sort((a,b)=>a-b),items=[...new Map(offsets.flatMap(page=>pages[page]).map(item=>[item.ref,item])).values()];
++    const lastOffset=Math.max(...offsets);
++    managedSchool[section]={...value,pages,items,lastOffset,more:offset===lastOffset?value.hasMore:previous?.more};
++  }catch(error){if(managedCurrent(owner,epoch)&&managedConnection?.connectionId===id&&managedConnection.sourceVersion===version)managedSchool[section]={...managedSchool[section],warning:error.message};}
++}
++async function refreshManagedSchool({force=false}={}){await Promise.allSettled(['messages','news'].filter(managedHas).map(section=>readManagedSection(section,{force})));}
++async function loadManagedMore(button){const section=button.dataset.section;if(!['messages','news'].includes(section)||!managedHas(section))return;button.disabled=true;await readManagedSection(section,{offset:(managedSchool[section]?.lastOffset||0)+20});if(button.isConnected)button.disabled=false;if(user)render();}
++const entFiles=files=>(Array.isArray(files)?files:[]).map(file=>file.ref?`<button type="button" class="btn ent-document" data-act="ent-file" data-ref="${esc(file.ref)}" data-name="${esc(file.name)}">${svg('file',17)}${esc(file.name)}</button>`:`<p class="m">${esc(file.name)} · À ouvrir dans l’ENT</p>`).join('');
++async function openManagedDetail(button){
++  const ref=button.dataset.ref,section=button.dataset.section;if(!user||!managedHas(section))return;
++  const owner=user.id,epoch=managedEpoch,id=managedConnection.connectionId,version=managedConnection.sourceVersion,serial=++managedDetailSerial;
++  showModal('<div data-ent-content><p class="m" role="status">Chargement du contenu…</p><button type="button" class="btn primary" data-act="modalclose">Fermer</button></div>');
++  const valid=()=>managedCurrent(owner,epoch)&&managedConnection?.connectionId===id&&managedConnection.sourceVersion===version&&managedHas(section)&&managedDetailSerial===serial;
++  try{
++    const value=await managedClient.detail(id,ref);if(!valid())return;
++    if(value.sourceVersion!==version)throw new Error('Le profil ENT a changé. Actualise la liste.');
++    if(section==='messages'&&value.kind!=='message'||section==='news'&&value.kind!=='news')throw new Error('Le contenu reçu ne correspond pas à cette rubrique.');
++    const parts=value.kind==='message'?(value.items||[]).map(item=>`<article class="ent-message-part"><p class="m">${esc(item.author)}${item.date?' · '+esc(new Date(item.date).toLocaleString('fr-FR')):''}</p><p class="ent-body">${esc(item.text)}</p>${entFiles(item.files)}</article>`).join(''):`<p class="m">${esc(value.author||'')}</p><p class="ent-body">${esc(value.text)}</p>${entFiles(value.files)}`;
++    showModal(`<div data-ent-content><div class="mok">${svg(section==='messages'?'mail':'news',26)}</div><div class="mt">${esc(value.title)}</div>${parts}${value.truncated?'<p class="ent-notice">Les 100 premiers messages de la conversation sont affichés. Consulte l’ENT pour la suite.</p>':''}<div class="row mrow"><button type="button" class="btn primary" data-act="modalclose">Fermer</button></div></div>`);
++    if(section==='messages'){const item=managedSchool.messages?.items.find(item=>item.ref===ref);if(item){item.read=true;render();}}
++  }catch(error){if(valid())showModal(`<div data-ent-content><p class="ent-notice" role="alert">${esc(error.message)}</p><button type="button" class="btn primary" data-act="modalclose">Fermer</button></div>`);}
++}
++async function downloadManagedFile(button){
++  if(!user||!managedConnection?.connectionId)return;const owner=user.id,epoch=managedEpoch,id=managedConnection.connectionId,version=managedConnection.sourceVersion;button.disabled=true;
++  try{const blob=await managedClient.file(id,button.dataset.ref);if(!managedCurrent(owner,epoch)||managedConnection?.connectionId!==id||managedConnection.sourceVersion!==version)return;const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=button.dataset.name||'Document';link.click();setTimeout(()=>URL.revokeObjectURL(url),1500);}
++  catch(error){if(managedCurrent(owner,epoch))setStatus(error.message,true);}finally{if(button.isConnected)button.disabled=false;}
++}
++
++function managedEntPanel(){
++  const connected=!!managedConnection?.connectionId,ready=connected&&managedConnection.status==='ready';
++  const last=managedConnection?.lastSync?new Date(managedConnection.lastSync).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
++  const labels={courses:'Cours',homework:'Devoirs',exams:'Contrôles',messages:'Mails de l’ENT',news:'Actualités du lycée'};
++  return `<section class="panel ent-connection" aria-label="Connexion ENT directe"><div class="ent-connection-heading"><span class="ent-connection-icon">${svg('school',25)}</span><div><h2>${connected?'Mon ENT connecté':'Connecter mon ENT'}</h2><p class="m">Cours, devoirs, contrôles, mails et actualités</p></div><span class="badge ${ready&&!managedConnection.stale?'ok':connected?'warn':''}">${ready?(managedConnection.stale?'Copie à actualiser':'Connecté'):connected?'À reconnecter':'Sans compte supplémentaire'}</span></div>${connected?`<p><strong>${esc(managedConnection.schoolName||'Mon établissement')}</strong>${managedConnection.student?.className?`<br><span class="m">${esc(managedConnection.student.className)}</span>`:''}</p><p class="m">${managedConnection.scopes.map(scope=>labels[scope]).join(' · ')}${last?' — Dernière récupération ENT : '+esc(last):''}</p>`:'<p>Connecte ton ENT pour retrouver tes cours, devoirs, contrôles, mails et actualités dans Lapsus, selon les services fournis par ton lycée.</p><p class="m">Au clic, tu choisis ton établissement puis tu te connectes à son ENT. Les informations sont synchronisées automatiquement avec ton compte Lapsus. Compatible avec les établissements pris en charge de l’ENT Auvergne-Rhône-Alpes.</p>'}<div class="ent-data-types" aria-label="Informations proposées à la connexion">${[['cal','Cours'],['hw','Devoirs et contrôles'],['mail','Mails de l’ENT'],['news','Actualités']].map(([icon,label])=>`<span>${svg(icon,16)}${label}</span>`).join('')}</div>${connected&&(!managedHas('messages')||!managedHas('news'))?'<p class="ent-notice">Reconnecte ton ENT pour inclure aussi les mails et les actualités. Tes autorisations actuelles restent appliquées.</p>':''}${managedNotice?`<p class="ent-notice" role="status">${esc(managedNotice)}</p>`:''}${managedConnection?.lastError?`<p class="ent-notice" role="status">${esc(managedConnection.lastError)} La dernière copie disponible reste affichée.</p>`:''}<div class="ent-connection-actions"><button type="button" class="btn primary" data-act="ent-connect" ${managedBusy?'disabled':''}>${connected?'Reconnecter mon ENT':'Connecter mon ENT'}</button>${connected?`<button type="button" class="btn" data-act="ent-refresh" ${managedBusy?'disabled':''}>Vérifier les mises à jour</button><button type="button" class="lnk2" data-act="ent-disconnect" ${managedBusy?'disabled':''}>Déconnecter</button>`:''}</div><p class="ent-powered"><a href="https://repere.84.235.226.127.sslip.io/agenda/" target="_blank" rel="noopener noreferrer" aria-label="Powered by PSRL — connexion assurée par Passerelle">Powered by <strong>PSRL</strong></a></p></section>`;
++}
++function managedWindow(focus=cursor){return {from:isoDay(addDays(focus,-14)),to:isoDay(addDays(focus,60))};}
++function managedCurrent(owner,epoch){return !!user&&user.id===owner&&managedEpoch===epoch;}
++async function discoverManaged(){
++  if(!user)return;
++  const owner=user.id,epoch=managedEpoch;
++  try{const next=await managedClient.current();if(!managedCurrent(owner,epoch))return;managedAvailable=true;setManagedConnection(next);}
++  catch(error){if(!managedCurrent(owner,epoch))return;managedAvailable=false;managedNotice=error.status===503?'La connexion ENT directe n’est pas encore activée sur Lapsus. Tes imports manuels restent disponibles.':error.message;}
++  if(view==='connexion-ent'&&!typing())render();
++}
++async function refreshManaged({manual=false,window=managedWindow(),quiet=false}={}){
++  if(!user)return;
++  if(managedBusy)return managedBusy;
++  const owner=user.id,epoch=managedEpoch;
++  const job=(async()=>{
++    try{
++      if(!quiet)setStatus(manual?'Vérification ENT demandée…':'Actualisation de l’ENT…');
++      const current=await managedClient.current();if(!managedCurrent(owner,epoch))return;
++      setManagedConnection(current);
++      if(!managedConnection?.connectionId){managedNotice='Aucun ENT n’est connecté à ce compte Lapsus.';return;}
++      const id=managedConnection.connectionId;
++      const activity=await (manual?managedClient.sync(id):managedClient.activity(id));if(!managedCurrent(owner,epoch))return;
++      setManagedConnection(activity);
++      const scopes=managedConnection.scopes;
++      const results=await Promise.all([
++        scopes.includes('courses')?managedClient.agenda(id,window):Promise.resolve(null),
++        scopes.some(scope=>scope==='homework'||scope==='exams')?managedClient.homework(id,window):Promise.resolve(null)
++      ]);
++      if(!managedCurrent(owner,epoch)||managedConnection?.connectionId!==id)return;
++      const [agenda,work]=results;
++      const changedSource=results.find(result=>result&&result.sourceVersion!==managedConnection.sourceVersion);
++      if(changedSource){setManagedConnection(changedSource);throw new Error('Le profil ENT a changé pendant la lecture. Réessaie pour récupérer sa nouvelle copie.');}
++      // Validate both snapshots before changing either cache. Missing work is a capability warning.
++      const courses=agenda?LapsusPasserelle.replaceCourses(managedCourses,agenda.events,window):managedCourses;
++      const homework=work?.available?LapsusPasserelle.replaceWork(managedWork,work.items,window):managedWork;
++      if(agenda)setManagedConnection(agenda);
++      else if(work)setManagedConnection(work);
++      managedCourses=courses;managedWork=homework.filter(item=>managedHas(item.type==='eval'?'exams':'homework'));
++      managedCoverage=[...managedCoverage.filter(range=>range.from!==window.from||range.to!==window.to),window].slice(-12);
++      rebuildManagedView();saveManagedCache();managedAvailable=true;
++      managedNotice=work&&!work.available?(work.warning||'Cet ENT ne transmet pas le travail à faire pour le moment.'):manual?'Une vérification est programmée ; les données ci-dessous indiquent la dernière récupération réussie.':'';
++      await refreshManagedSchool({force:manual});if(!managedCurrent(owner,epoch))return;
++      store.set('demo',false);
++      if(managedConnection.lastSync)store.set('lastSync',managedConnection.lastSync);
++      const label=managedConnection.lastSync?'Copie ENT du '+new Date(managedConnection.lastSync).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'Première récupération ENT en cours';
++      setStatus(manual?'Vérification demandée · '+label:label,!!managedConnection.lastError);
++    }catch(error){if(managedCurrent(owner,epoch)){managedNotice=error.message;setStatus('ENT : '+error.message,true);}}
++    finally{if(managedCurrent(owner,epoch)){managedBusy=null;if(!typing())render();}}
++  })();
++  managedBusy=job;return job;
++}
++function ensureManagedRange(){
++  if(!managedConnection?.connectionId||!user)return;
++  const from=isoDay(cursor),to=isoDay(addDays(cursor,7));
++  if(!managedCoverage.some(range=>range.from<=from&&range.to>=to))void refreshManaged({window:managedWindow(cursor),quiet:true});
++}
++async function connectManaged(button){
++  if(!user||managedBusy)return;
++  const owner=user.id,epoch=managedEpoch;button.disabled=true;
++  try{const launch=await managedClient.connect();if(managedCurrent(owner,epoch))location.assign(launch);}
++  catch(error){if(managedCurrent(owner,epoch)){managedNotice=error.message;setStatus(error.message,true);render();}}
++  finally{if(button.isConnected)button.disabled=false;}
++}
++async function disconnectManaged(){
++  if(!user||!managedConnection?.connectionId)return;
++  const owner=user.id,epoch=managedEpoch,id=managedConnection.connectionId;
++  try{await managedClient.disconnect(id);if(!managedCurrent(owner,epoch))return;setManagedConnection({connectionId:null},true);managedNotice='Cet ENT a été déconnecté. Tes imports manuels sont de nouveau disponibles.';setStatus('ENT déconnecté · Imports manuels disponibles');render();if(hasFeeds())void refresh();}
++  catch(error){if(managedCurrent(owner,epoch)){managedNotice=error.message;render();}}
++}
++setInterval(()=>{if(user&&managedConnection?.connectionId&&!document.hidden&&!typing()&&!managedBusy)void refreshManaged({quiet:true});},60000);
++document.addEventListener('visibilitychange',()=>{if(!document.hidden&&user&&managedConnection?.connectionId&&!typing())void refreshManaged({quiet:true});});
++
+ const BOOT_MS=window.__BOOT_MS||8000;
+ const withTimeout=(p,ms)=>Promise.race([p,new Promise(r=>setTimeout(()=>r({__timeout:true}),ms))]);
+ async function enterApp(){
+@@ -1016,9 +1186,11 @@ async function enterApp(){
+   if(last)setStatus('Dernière synchro : '+new Date(last).toLocaleString('fr-FR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}));
+   view=({home:'home',agenda:'agenda',lycee:'lycee'})[lyceePrefs.profile.start]||'home';
+   render();window.scrollTo(0,0);
+-  if(hasFeeds())refresh();
++  if(passerelleReturn){const callback=passerelleReturn;passerelleReturn=null;try{const value=await managedClient.exchange(callback);setManagedConnection(value,true);managedNotice='Ton ENT est connecté à Lapsus.';}catch(error){managedNotice=error.message;view='connexion-ent';}render();}
++  await discoverManaged();
++  if(hasFeeds()){if(managedConnection?.connectionId)void refreshManaged();else void refresh();}
+ }
+-function leaveApp(){user=null;NS='';resetState();setStatus('');applyAuth();window.scrollTo(0,0);}
++function leaveApp(){passerelleReturn=null;user=null;NS='';resetState();setStatus('');document.querySelector('#main')?.replaceChildren();document.querySelector('#nav')?.replaceChildren();closeModal();applyAuth();window.scrollTo(0,0);}
+ const TERMS_VERSION='2026-10-31';
+ function frAuthError(err){
+   const m=String((err&&err.message)||err||'');
+@@ -1065,7 +1237,7 @@ function showReset(){applyAuth();const g=$('#gate');if(g){g.hidden=false;g.inner
+ // Fenêtre « Mot de passe oublié ? »
+ let forgotEmail='';
+ function showModal(html){const m=$('#modal');if(!m)return;m.innerHTML='<div class="modal" role="dialog" aria-modal="true">'+html+'</div>';m.hidden=false;setTimeout(()=>{const f=m.querySelector('input,button.primary');if(f)f.focus();},30);}
+-function closeModal(){modalOk=null;const m=$('#modal');if(m){m.hidden=true;m.innerHTML='';}}
++function closeModal(){managedDetailSerial++;modalOk=null;const m=$('#modal');if(m){m.hidden=true;m.innerHTML='';}}
+ let modalOk=null;
+ // Fenêtre de confirmation aux couleurs de Lapsus. o: {icon,title,text,ok,danger,typeWord,onOk}
+ function askModal(o){
+@@ -1188,9 +1360,9 @@ document.addEventListener('click',e=>{
+       for(let i=0;i<7;i++){d=addDays(d,dir);const we=d.getDay()===0||d.getDay()===6;if(!we||sched(d).length)break;}
+       cursor=startOfDay(d);
+     }else cursor=addDays(cursor,7*dir);
+-    render();
++    render();ensureManagedRange();
+   }
+-  else if(a==='today'){cursor=startOfDay(new Date());render();}
++  else if(a==='today'){cursor=startOfDay(new Date());render();ensureManagedRange();}
+   else if(a==='gotoweek'){cursor=startOfDay(new Date());view='agenda';render();window.scrollTo(0,0);}
+   else if(a==='hwfilter'){hwFilter=t.dataset.v;render();}
+   else if(a==='toggledone'){showDone=!showDone;render();}
+@@ -1202,6 +1374,12 @@ document.addEventListener('click',e=>{
+   else if(a==='logout'){askModal({icon:'out',title:'Se déconnecter ?',text:'Tu devras te reconnecter avec ton adresse e-mail et ton mot de passe. Tes données restent enregistrées sur ton compte.',ok:'Se déconnecter',onOk:doLogout});}
+   else if(a==='modalok'){const f=modalOk;closeModal();if(f)f();}
+   else if(a==='deleteaccount'){askModal({icon:'trash',danger:true,title:'Supprimer le compte ?',text:'Ton compte et toutes tes données (devoirs, éléments cochés, liens, réglages) seront supprimés définitivement. Cette action est irréversible.',typeWord:'SUPPRIMER',ok:'Supprimer le compte',onOk:deleteAccountModal});}
++  else if(a==='ent-connect'){void connectManaged(t);}
++  else if(a==='ent-disconnect'){askModal({icon:'warn',title:'Déconnecter cet ENT ?',text:'Les prochaines lectures seront arrêtées. Tes devoirs personnels et tes imports manuels restent disponibles.',ok:'Déconnecter',onOk:disconnectManaged});}
++  else if(a==='ent-detail'){void openManagedDetail(t);}
++  else if(a==='ent-file'){void downloadManagedFile(t);}
++  else if(a==='ent-more'){void loadManagedMore(t);}
++  else if(a==='ent-refresh'){void refreshManaged({manual:true});}
+   else if(a==='sync'){withLoader('Synchronisation en cours…','Je récupère ton emploi du temps et tes devoirs.',refresh());}
+   else if(a==='demo'){loadDemo();}
+   else if(a==='hwtoggle'){
+@@ -1309,7 +1487,7 @@ document.addEventListener('change',async e=>{
+   }else if(t.id==='notifMin'){
+     const cfg=store.get('notif',{on:false,min:10});cfg.min=+t.value;store.set('notif',cfg);pushSettings();
+   }else if(t.id==='agendaDate'){
+-    if(t.value){cursor=parseISO(t.value);render();}
++    if(t.value){cursor=parseISO(t.value);render();ensureManagedRange();}
+   }else if(t.dataset&&t.dataset.color!==undefined){
+     colors[t.dataset.color]=t.value;store.set('subjectColors',colors);pushSettings();render();
+   }else if(t.dataset&&t.dataset.ghost){
+diff --git a/docs/CLOUDFLARE_FIX.md b/docs/CLOUDFLARE_FIX.md
+new file mode 100644
+index 0000000..3675ec8
+--- /dev/null
++++ b/docs/CLOUDFLARE_FIX.md
+@@ -0,0 +1,37 @@
++# Correctif du connecteur ENT Cloudflare · 7 novembre 2026
++
++## Installation sur Lapsus
++
++Pour une installation qui contient déjà le connecteur ENT, remplacer le fichier `functions/api/passerelle/[[path]].js` par celui de ce correctif, puis redéployer les **Cloudflare Pages Functions** du projet Lapsus. L’interface et les réglages d’authentification restent compatibles. Les trois variables existantes sont conservées ; aucune nouvelle clé, inscription ou modification Supabase n’est nécessaire pour ce correctif.
++
++Le correctif et son patch ciblent la fonction du connecteur préparée en version 4.20. L’archive complète d’intégration reste basée sur le commit `25cda54685debbbd9aac5fa3329be94cb94c0949` : intégrer ses changements dans la version actuelle de Lapsus. Le dépôt public consulté le 7 novembre ne contient plus cette fonction dans `main` ; appliquer le correctif dans le projet qui déploie effectivement le connecteur.
++
++## Cause reproduite et changement
++
++La fonction utilisait `redirect: "error"` dans ses appels à Supabase Auth et à Passerelle. Le moteur Cloudflare `workerd` refuse cette option et lève une `TypeError` avant tout appel réseau. Le gestionnaire global renvoyait ensuite « Le service ENT est momentanément indisponible ». Les tests sous Node acceptaient cette option et n’exécutaient pas le moteur Cloudflare.
++
++La fonction utilise désormais `redirect: "manual"` et refuse explicitement les réponses 3xx. Les clés et jetons restent envoyés uniquement aux deux services attendus ; aucune destination de redirection n’est suivie.
++
++Les pannes de transport distinguent la vérification du compte Lapsus de la liaison Passerelle. Les erreurs serveur reçoivent une `reference`, également présente dans une entrée structurée des logs Cloudflare. Ces logs contiennent uniquement `event`, `reference`, `phase`, `code`, `status` ; aucun en-tête, jeton, identifiant de compte, contenu de message, URL privée ou erreur brute n’est journalisé.
++
++Codes utiles : `LAPSUS_AUTH_UNAVAILABLE`, `LAPSUS_AUTH_REDIRECT`, `PASSERELLE_UNAVAILABLE`, `PASSERELLE_REDIRECT`, `ENT_CONNECTOR_FAILURE`. Les erreurs normales de session restent des 401. Un service qui n’a jamais été configuré conserve son code distinct `ENT_CONNECTOR_UNCONFIGURED`.
++
++## Vérifications fournies
++
++Les 15 tests Node du connecteur et du client passent. Le test natif sous `workerd@1.20261106.1` reproduit le refus de l’ancienne option et valide les appels corrigés, les 401, le refus des redirections, PKCE, le cookie chiffré, les erreurs réseau et les diagnostics sans secrets.
++
++Les services Auth et Passerelle de ces essais sont synthétiques et confinés dans le moteur ; son accès Internet est refusé. Aucun compte réel, aucun ENT ni mail réel n’est utilisé.
++
++```sh
++node --test tests/cloudflare-passerelle.test.mjs
++npm install --prefix /tmp/lapsus-workerd --save-exact --no-audit --no-fund workerd@1.20261106.1
++WORKERD_BINARY=/tmp/lapsus-workerd/node_modules/.bin/workerd node tests/cloudflare-workerd.smoke.mjs
++```
++
++## Après le redéploiement par le propriétaire
++
++Sans session, `/api/passerelle/connection` doit renvoyer 401. Une session expirée doit aussi être refusée, puis un utilisateur connecté doit pouvoir choisir « Connecter mon ENT ». Terminer ce parcours avec un compte de test du propriétaire pour vérifier l’accès réel à son lycée. Ce dernier essai nécessite son authentification et n’est pas présumé réalisé par la publication de l’archive.
++
++Si une erreur 5xx subsiste, rapprocher la `reference` de la réponse de celle des logs Cloudflare. Vérifier la configuration du service indiqué par `phase` et `code`.
++
++Référence : [API Request de Cloudflare](https://developers.cloudflare.com/workers/runtime-apis/request/).
+diff --git a/docs/PASSERELLE_ENT.md b/docs/PASSERELLE_ENT.md
+new file mode 100644
+index 0000000..4f9ec82
+--- /dev/null
++++ b/docs/PASSERELLE_ENT.md
+@@ -0,0 +1,97 @@
++# Connexion ENT via Passerelle
++
++Cette branche ajoute un connecteur ENT à Lapsus. Passerelle conserve son application, ses comptes et ses abonnements existants. Les connexions techniques de Lapsus sont stockées séparément côté Passerelle ; aucun compte Passerelle n’est demandé à l’utilisateur Lapsus.
++
++## Correctif Cloudflare du 7 novembre 2026
++
++La fonction fournie corrige une incompatibilité du moteur Cloudflare : les appels utilisent le mode `manual` et refusent les redirections au lieu d’utiliser l’option non prise en charge `error`. Les erreurs serveur distinguent Auth de Passerelle et produisent une référence avec un journal sans secrets. Pour une intégration déjà installée, voir [le correctif minimal et sa validation sous workerd](CLOUDFLARE_FIX.md).
++
++## Installation
++
++Le patch est préparé sur le commit Lapsus `25cda54685debbbd9aac5fa3329be94cb94c0949`. Si le dépôt a évolué, intégrer les modifications dans sa version actuelle plutôt que remplacer les fichiers sans fusion.
++
++1. Fusionner les fichiers préparés dans le dépôt Lapsus : dossier `functions/`, module `passerelle-ent.js`, modifications `app.js`, `index.html`, styles et règles de routage. Les imports ICS manuels restent disponibles.
++2. Dans l’administration Passerelle, ouvrir **Plus → Réglages → Applications connectées → Configurer Lapsus → Connexion ENT depuis Lapsus**. Créer une clé serveur, la copier puis activer le connecteur. La clé n’est affichée qu’une fois. En cas de perte, la renouveler et mettre à jour Cloudflare.
++3. Configurer ces variables pour le projet Cloudflare Pages Lapsus :
++
++   | Variable | Valeur |
++   | --- | --- |
++   | `PASSERELLE_MANAGED_KEY` | **Secret** : clé générée dans Passerelle |
++   | `LAPSUS_SUPABASE_URL` | URL du même projet Supabase que Lapsus |
++   | `LAPSUS_SUPABASE_PUBLISHABLE_KEY` | Clé publique publishable du même projet, ou clé legacy `anon` existante |
++
++   La clé Supabase doit être publique : ne pas utiliser une clé `service_role` ou `sb_secret_`. La fonction n’a besoin d’aucun accès administrateur à la base de données et ne crée aucune table. L’URL et la clé publique du projet actuel sont déjà utilisées dans `CONFIG` du code Lapsus.
++4. Déployer le projet avec prise en charge des **Cloudflare Pages Functions**. Le dossier `functions/api/passerelle/` doit être compilé et déployé côté serveur ; copier seulement les fichiers statiques ne suffit pas. Le routage `_routes.json` limite les fonctions à `/api/passerelle/*` ; `_redirects` sert la callback depuis l’application existante.
++5. Se connecter à un compte Lapsus de test, ouvrir **Réglages → Connexion → ENT**, puis **Connecter mon ENT**. Choisir le lycée compatible, se connecter à l’ENT et choisir l’élève si nécessaire. Passerelle revient à Lapsus après synchronisation. Il n’y a ni inscription Passerelle ni seconde page « Autoriser Passerelle ».
++
++Le connecteur actuel concerne les établissements compatibles de l’ENT Auvergne-Rhône-Alpes. Les autres ENT ne sont pas annoncés comme pris en charge. L’ENT peut imposer sa propre authentification ou une reconnexion ; la VM ne peut pas en prolonger arbitrairement la durée.
++
++## Identité visuelle
++
++Le parcours hébergé conserve les couleurs et la police Manrope de Passerelle, avec les cartes, boutons et icônes de lycée, connexion, agenda et validation inspirés de Lapsus. Le logo Lapsus identifie l’application destinataire ; la signature du fournisseur reste **Powered by PSRL**, avec un lien vers Passerelle. Les informations à synchroniser restent indiquées. Le portail ENT affiché pendant l’authentification conserve son identité propre.
++
++La carte ENT dans les réglages Lapsus reprend la même signature discrète. L’application Passerelle garde sa propre identité. L’[aperçu public du connecteur](https://repere.84.235.226.127.sslip.io/agenda/integrations/lapsus-managed/preview.html) est purement visuel : il ne contacte aucun ENT, ne récupère aucune donnée et ne remplace pas le déploiement de Lapsus.
++
++## Fonctionnement
++
++Le navigateur Lapsus transmet son access token Supabase à sa propre fonction Cloudflare. Cette fonction demande le compte courant à Supabase Auth (`GET /auth/v1/user`) et utilise exclusivement l’identifiant validé par ce serveur. Un identifiant ou une permission fournie dans `user_metadata` ne sert jamais à autoriser des données.
++
++Cloudflare appelle ensuite l’API Passerelle avec sa clé secrète et l’identifiant du compte vérifié. La demande de connexion est protégée par PKCE. État, vérificateur et compte sont conservés pendant douze minutes dans un cookie chiffré, HttpOnly, Secure et SameSite=Lax. Le retour est exactement `https://mon-ent.pages.dev/passerelle/ent/callback` ; issuer, état, compte et échéance sont vérifiés avant l’échange d’un code utilisable une seule fois.
++
++Lapsus reçoit les cours, devoirs, contrôles, mails et actualités autorisés sous forme JSON normalisée. Les tokens ENT restent chiffrés sur la VM et ne sont transmis ni au navigateur Lapsus ni à Cloudflare. Les lectures REST utilisent le dernier instantané : elles ne lancent pas de requête ENT à chaque affichage.
++
++Une origine de preview ou localhost ne peut pas utiliser le parcours de production tel quel : la callback et les origines sont enregistrées exactement. Les tests locaux utilisent des services simulés.
++
++## API utilisée par le navigateur
++
++Toutes les routes demandent `Authorization: Bearer <access-token-Supabase>` et n’autorisent que l’origine Lapsus. Les mutations utilisent aussi l’origine de la page ; aucun cookie seul ne suffit à consulter un compte.
++
++| Route relative | Méthode | Usage |
++| --- | --- | --- |
++| `/api/passerelle/connect` | POST `{scopes}` | Créer le parcours ENT et recevoir `launchURL` |
++| `/api/passerelle/exchange` | POST `{code,state,iss}` | Terminer la connexion sur le même compte Lapsus |
++| `/api/passerelle/connection` | GET | Retrouver la connexion du compte sur cet appareil |
++| `/api/passerelle/connection` | DELETE | Retirer les connexions techniques du compte avant sa suppression, même sans cache local |
++| `/api/passerelle/connections/:id/status` | GET | État, fraîcheur et prochaine vérification |
++| `/api/passerelle/connections/:id/agenda?from=...&to=...` | GET | Cours actifs sur une plage de 93 jours maximum |
++| `/api/passerelle/connections/:id/homework?from=...&to=...` | GET | Devoirs et contrôles de la plage |
++| `/api/passerelle/connections/:id/school/messages?offset=0` | GET | Liste des mails ENT ; pagination par vingt, dossier facultatif |
++| `/api/passerelle/connections/:id/school/news?offset=0` | GET | Actualités du lycée et pagination |
++| `/api/passerelle/connections/:id/detail/:ref` | GET | Texte intégral d’un mail ou d’une actualité référencée |
++| `/api/passerelle/connections/:id/files/:ref` | GET | Pièce jointe autorisée, jusqu’à 15 Mo |
++| `/api/passerelle/connections/:id/activity` | POST `{}` | Signaler une utilisation pour adapter la cadence |
++| `/api/passerelle/connections/:id/sync` | POST `{}` | Demander une vérification, bornée et respectant le recul après erreur |
++| `/api/passerelle/connections/:id` | DELETE | Retirer cette connexion technique et ses données source |
++
++Permissions possibles : `courses`, `homework`, `exams`, `messages`, `news`. Une connexion déjà créée conserve ses droits : la reconnecter pour ajouter les mails et actualités. Lapsus réutilise ses propres cartes et états de devoirs ; les identifiants des éléments restent stables lorsqu’une date change. Les instantanés d’une plage remplacent uniquement cette plage. Un cours annulé ou supprimé disparaît de la source REST plutôt que créer un événement supplémentaire barré. Les options manuelles ICS et les autres données Lapsus sont conservées.
++
++La clé serveur donne accès aux connexions gérées pour ce partenaire : elle doit rester dans les secrets Cloudflare, jamais dans `app.js`, le stockage navigateur ou un dépôt Git. La fonction construit l’identifiant externe à partir de Supabase Auth et ignore les en-têtes d’identité envoyés par le navigateur.
++
++La suppression d’un compte Lapsus retire d’abord sa connexion ENT avant d’appeler `delete_my_account`. Ce nettoyage reste possible lorsque le connecteur est désactivé dans Passerelle, avec la clé serveur valide. Une panne ou une erreur de suppression empêche d’afficher une réussite. Seul un connecteur sans clé configurée, sans connexion connue sur l’appareil, permet de continuer sans appel Passerelle ; après une mise en service, conserver la clé Cloudflare tant que des profils techniques existent. Une suppression effectuée directement depuis l’administration Supabase doit aussi retirer la connexion technique côté Passerelle avant de supprimer l’identité : le parcours fourni couvre le bouton de suppression de Lapsus.
++
++## Synchronisation et tokens
++
++- Prochains jours : vérification environ toutes les deux minutes pendant l’utilisation, cinq minutes en journée au repos, trente minutes la nuit.
++- Toute l’année scolaire : balayage quotidien, réparti entre les connexions. Une lecture récente ne signifie pas que toutes les dates éloignées ont été vérifiées au même instant ; les métadonnées distinguent la dernière lecture et le dernier balayage annuel.
++- Les pannes et limitations de l’ENT allongent les délais ; une connexion expirée demande une reconnexion. Les dernières données valides sont conservées pendant une panne.
++- Les renouvellements des tokens sont sérialisés et anticipés près de leur expiration ; leur durée est décidée par l’ENT. La clé Cloudflare et les tokens ENT sont des éléments distincts.
++
++## Vérification après installation réelle
++
++Les essais fournis utilisent uniquement des données synthétiques. Après configuration par le propriétaire, vérifier sur son compte de test : connexion ENT, retour dans le même compte Lapsus, lecture de l’agenda, devoirs/contrôles lorsqu’ils sont fournis, actualisation, déconnexion puis reconnexion, et absence de données d’un autre compte. Un test d’authentification réel n’est pas présumé effectué par la simple présence de ce code.
++
++Références : [Cloudflare Pages Functions](https://developers.cloudflare.com/pages/functions/), [secrets et bindings](https://developers.cloudflare.com/pages/functions/bindings/), [vérification Supabase Auth](https://supabase.com/docs/reference/javascript/auth-getuser), [PKCE](https://www.rfc-editor.org/rfc/rfc7636.html).
++
++## Extension mails et actualités · 4.20
++
++La nouvelle connexion demande aussi `messages` et `news`, indiqués dans la carte ENT et dans le parcours hébergé. Les boîtes personnelles du portail Passerelle ne sont pas partagées. Les anciennes connexions ne reçoivent aucun droit supplémentaire sans reconnexion. Aucun changement de schéma ou de politique Supabase n’est nécessaire. La vérification Auth existante par la fonction Cloudflare reste obligatoire et inchangée.
++
++Mon lycée, Mails et Actualités utilisent leurs vues Lapsus existantes. Les listes et leurs pages sont chargées via la fonction, le texte complet s’ouvre dans une fenêtre de lecture et les pièces jointes passent par la même authentification. Les contenus ENT de ces deux rubriques ne sont pas écrits dans les tables `school_mails`/`school_news` et ne sont pas persistés dans le cache navigateur ; ils restent en mémoire et sont effacés au changement de compte, de source ou à la déconnexion. Les données déjà présentes dans Lapsus restent séparées.
++
++Une lecture de liste réutilise normalement le cache privé Passerelle pendant cinq minutes ; `refresh=1` demande une relecture de la rubrique. Cette partie fonctionne à la demande, indépendamment de la synchronisation automatique des cours. `available:false` signifie que la rubrique n’est pas fournie pour ce compte ; une erreur temporaire garde la dernière copie et affiche une explication. Les permissions sont imposées côté Passerelle, pas seulement masquées dans les écrans.
++
++Les références de contenu et de document sont privées et temporaires, liées à la connexion et à sa version de source. Un code 410 demande de relire la liste et de rouvrir le contenu ; un redémarrage du serveur invalide ces références en mémoire. Les noms et métadonnées des fichiers sont affichés sans URL ENT privée. La limite de téléchargement est de 15 Mo. Aucune URL choisie par le navigateur ne peut être téléchargée par le connecteur.
++
++Les tests du kit couvrent la fonction Cloudflare, les listes, le contenu intégral, les documents, les pages supplémentaires, l’isolation des comptes, le nettoyage du profil, le texte échappé et le parcours existant agenda/devoirs/contrôles. Le script de contrat Passerelle exerce les deux services réels localement en simulant uniquement Auth et l’ENT.
++
++Le patch téléchargeable est vérifié sur la base Git `25cda54685debbbd9aac5fa3329be94cb94c0949`. Les fichiers modifiés doivent être intégrés au projet actuel avant déploiement ; le guide et le paquet contiennent la même source testée.
+diff --git a/functions/api/passerelle/[[path]].js b/functions/api/passerelle/[[path]].js
+new file mode 100644
+index 0000000..6ebfc98
+--- /dev/null
++++ b/functions/api/passerelle/[[path]].js
+@@ -0,0 +1,137 @@
++// Runs in Cloudflare Pages Functions. No server key is included in browser code.
++const ORIGIN='https://mon-ent.pages.dev';
++const ISSUER='https://repere.84.235.226.127.sslip.io/agenda';
++const COOKIE='lapsus_ent_transaction',TTL=12*60000;
++const SCOPES=['courses','homework','exams','messages','news'];
++const ID=/^ment-[a-f0-9-]{36}$/;
++const object=value=>!!value&&typeof value==='object'&&!Array.isArray(value);
++const exact=(value,keys)=>object(value)&&Object.keys(value).every(key=>keys.includes(key));
++const encode=bytes=>btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
++const decode=value=>Uint8Array.from(atob(value.replace(/-/g,'+').replace(/_/g,'/')),char=>char.charCodeAt(0));
++class RequestError extends Error{constructor(message,status=400,code){super(message);this.status=status;this.code=code;}}
++const fail=(message,status=400,code)=>{throw new RequestError(message,status,code);};
++const json=(value,status=200,extra={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','Pragma':'no-cache','X-Content-Type-Options':'nosniff',...extra}});
++
++async function readBytes(message,limit){
++  if(Number(message.headers.get('content-length')||0)>limit)fail('La réponse ou la demande est trop volumineuse.',413);
++  if(!message.body)return new Uint8Array();
++  const reader=message.body.getReader();let count=0;const chunks=[];
++  try{while(true){const {done,value}=await reader.read();if(done)break;count+=value.byteLength;if(count>limit){await reader.cancel();fail('La réponse ou la demande est trop volumineuse.',413);}chunks.push(value);}}
++  finally{reader.releaseLock();}
++  const bytes=new Uint8Array(count);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
++  return bytes;
++}
++async function readJSON(message,limit){
++  const bytes=await readBytes(message,limit);if(!bytes.length)return {};
++  try{return JSON.parse(new TextDecoder().decode(bytes));}catch{fail('Le message reçu est invalide.');}
++}
++function configuration(env){
++  if(!env.PASSERELLE_MANAGED_KEY)fail('La connexion ENT n’est pas encore configurée dans Lapsus.',503,'ENT_CONNECTOR_UNCONFIGURED');
++  if(!/^[A-Za-z0-9_-]{43}$/.test(env.PASSERELLE_MANAGED_KEY||''))fail('La connexion ENT n’est pas encore configurée dans Lapsus.',503);
++  let auth;try{auth=new URL(env.LAPSUS_SUPABASE_URL);}catch{fail('La connexion des comptes Lapsus n’est pas configurée.',503);}
++  if(auth.protocol!=='https:'||!auth.hostname.endsWith('.supabase.co')||auth.username||auth.password||auth.port||auth.pathname!=='/'||auth.search||auth.hash)fail('La configuration de connexion Lapsus est invalide.',503);
++  const publicKey=env.LAPSUS_SUPABASE_PUBLISHABLE_KEY||'';
++  let publishable=/^sb_publishable_[A-Za-z0-9_-]{10,500}$/.test(publicKey);
++  if(!publishable&&publicKey.split('.').length===3){try{publishable=JSON.parse(new TextDecoder().decode(decode(publicKey.split('.')[1]))).role==='anon';}catch{}}
++  if(!publishable)fail('Configurez une clé publique Supabase, jamais une clé secrète de service.',503);
++  return {key:env.PASSERELLE_MANAGED_KEY,auth:auth.origin,publicKey};
++}
++async function cookieKey(secret){return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode('lapsus-managed-ent-cookie-v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt']);}
++async function seal(value,secret){const iv=crypto.getRandomValues(new Uint8Array(12));const content=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await cookieKey(secret),new TextEncoder().encode(JSON.stringify(value))));const bytes=new Uint8Array(iv.length+content.length);bytes.set(iv);bytes.set(content,iv.length);return encode(bytes);}
++async function open(value,secret){try{if(!/^[A-Za-z0-9_-]{50,2000}$/.test(value||''))throw new Error();const bytes=decode(value);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes.slice(0,12)},await cookieKey(secret),bytes.slice(12))));}catch{fail('La connexion ENT a expiré. Relancez-la depuis Lapsus.',410);}}
++const cookieHeader=(value,maxAge)=>`${COOKIE}=${value}; Path=/api/passerelle; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`;
++const cookieValue=request=>(request.headers.get('cookie')||'').split(';').map(row=>row.trim().split('=')).find(([name])=>name===COOKIE)?.[1];
++
++export function createHandler({fetcher=(...args)=>fetch(...args),now=()=>Date.now(),logger=entry=>console.warn(JSON.stringify(entry))}={}){
++ return async function handle({request,env}){
++  const url=new URL(request.url),path=url.pathname.slice('/api/passerelle'.length);let clearCookie=false,phase='request';
++  try{
++   if(url.origin!==ORIGIN||!url.pathname.startsWith('/api/passerelle/'))fail('Adresse de service non autorisée.',403);
++   const origin=request.headers.get('origin');
++   if(origin&&origin!==ORIGIN||!['GET','POST','DELETE'].includes(request.method)||request.method!=='GET'&&origin!==ORIGIN)fail('Origine ou méthode de la demande refusée.',403);
++   phase='configuration';
++   const config=configuration(env),bearer=request.headers.get('authorization')||'';
++   if(!/^Bearer [A-Za-z0-9._-]{30,8192}$/.test(bearer))fail('Connectez-vous à votre compte Lapsus.',401);
++   const remote=async(target,url,options)=>{
++    phase=target==='auth'?'authentication':'passerelle';
++    let response;
++    // workerd accepts manual/follow only. Never forward credentials through a redirect.
++    try{response=await fetcher(url,{...options,redirect:'manual'});}
++    catch{fail(target==='auth'?'La vérification du compte Lapsus est temporairement indisponible.':'La liaison avec Passerelle est temporairement indisponible.',502,target==='auth'?'LAPSUS_AUTH_UNAVAILABLE':'PASSERELLE_UNAVAILABLE');}
++    if(response.status>=300&&response.status<400){
++     await response.body?.cancel().catch(()=>{});
++     fail(target==='auth'?'La connexion des comptes Lapsus doit être vérifiée par l’administrateur.':'La liaison avec Passerelle doit être vérifiée par l’administrateur.',502,target==='auth'?'LAPSUS_AUTH_REDIRECT':'PASSERELLE_REDIRECT');
++    }
++    return response;
++   };
++   // Ask Auth for the current user. Never trust a client-supplied subject or metadata.
++   const check=await remote('auth',config.auth+'/auth/v1/user',{headers:{apikey:config.publicKey,Authorization:bearer},signal:AbortSignal.timeout(12000)});
++   if(!check.ok){if(check.status>=500)fail('La connexion Lapsus est temporairement indisponible.',503);fail('Votre session Lapsus a expiré. Reconnectez-vous.',401);}
++   const user=await readJSON(check,128*1024);
++   if(!/^[a-fA-F0-9-]{36}$/.test(user.id||'')||user.is_anonymous===true||Date.parse(user.banned_until)>now())fail('Un compte Lapsus actif est nécessaire.',401);
++   const upstream=async(route,{method='GET',body,binary=false}={})=>{
++    const response=await remote('passerelle',ISSUER+'/api/managed-ent'+route,{method,headers:{Authorization:'Bearer '+config.key,'X-Lapsus-User':user.id,...(body!==undefined?{'Content-Type':'application/json'}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(binary?35000:30000)});
++    if(!response.ok){await response.body?.cancel().catch(()=>{});const messages={401:'La connexion entre Lapsus et Passerelle doit être reconfigurée.',403:'Ces données ne sont pas autorisées pour cette connexion.',404:'Cette connexion ENT n’existe plus. Reconnectez votre ENT.',409:'La connexion ENT a changé. Relancez-la depuis Lapsus.',410:/\/(detail|files)\//.test(route)?'Ce contenu a expiré. Actualise sa liste puis rouvre-le.':'La demande de connexion a expiré.',429:'Trop de demandes. Réessayez dans quelques minutes.',503:'La récupération ENT est temporairement indisponible.'};fail(messages[response.status]||'La récupération ENT est momentanément indisponible.',response.status>=400&&response.status<600?response.status:502);}
++    if(binary)return new Response(await readBytes(response,15*1024*1024),{headers:{'Content-Type':'application/octet-stream','Content-Disposition':response.headers.get('Content-Disposition')||'attachment','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
++    const value=await readJSON(response,2*1024*1024);
++    return value;
++   };
++   if(path==='/connect'&&request.method==='POST'){
++    const input=await readJSON(request,4096);
++    if(!exact(input,['scopes'])||!Array.isArray(input.scopes)||!input.scopes.length||input.scopes.length>SCOPES.length||new Set(input.scopes).size!==input.scopes.length||input.scopes.some(value=>!SCOPES.includes(value)))fail('Choisissez les données ENT à connecter.');
++    const state=encode(crypto.getRandomValues(new Uint8Array(32))),verifier=encode(crypto.getRandomValues(new Uint8Array(32)));
++    const codeChallenge=encode(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
++    const value=await upstream('/sessions',{method:'POST',body:{externalUserId:user.id,scopes:input.scopes,state,codeChallenge}});
++    const launch=new URL(value.launchURL);
++    if(launch.origin!==new URL(ISSUER).origin||launch.username||launch.password||launch.hash||launch.pathname!=='/agenda/ent-connect'||[...launch.searchParams.keys()].length!==1||!/^[A-Za-z0-9_-]{43}$/.test(launch.searchParams.get('session')||''))fail('La demande de connexion reçue est invalide.',502);
++    phase='transaction';
++    const sealed=await seal({userId:user.id,state,verifier,expiresAt:now()+TTL},config.key);
++    return json({launchURL:launch.href,expiresAt:value.expiresAt},200,{'Set-Cookie':cookieHeader(sealed,TTL/1000)});
++   }
++   if(path==='/exchange'&&request.method==='POST'){
++    phase='transaction';clearCookie=true;const transaction=await open(cookieValue(request),config.key),input=await readJSON(request,4096);
++    if(!exact(input,['code','state','iss'])||transaction.userId!==user.id||transaction.expiresAt<=now()||transaction.expiresAt>now()+TTL||input.state!==transaction.state||input.iss!==ISSUER||!/^[A-Za-z0-9_-]{43}$/.test(input.code||''))fail('Cette connexion ne correspond pas à votre compte Lapsus. Relancez-la.',409);
++    const value=await upstream('/exchange',{method:'POST',body:{code:input.code,codeVerifier:transaction.verifier}});
++    return json(value,200,{'Set-Cookie':cookieHeader('',0)});
++   }
++   if(path==='/connection'&&request.method==='GET'&&!url.search)return json(await upstream('/connection'));
++   if(path==='/connection'&&request.method==='DELETE'&&!url.search)return json(await upstream('/connection',{method:'DELETE'}));
++   const school=/^\/connections\/(ment-[a-f0-9-]{36})\/school\/(messages|news)$/.exec(path);
++   if(school&&request.method==='GET'){
++    const allowed=school[2]==='messages'?['offset','folder','refresh']:['offset','refresh'];
++    if([...url.searchParams.keys()].some(key=>!allowed.includes(key)||url.searchParams.getAll(key).length!==1))fail('Paramètres de consultation invalides.');
++    const offset=url.searchParams.get('offset'),folder=url.searchParams.get('folder'),refresh=url.searchParams.get('refresh');
++    if(offset!==null&&!/^\d{1,5}$/.test(offset)||folder!==null&&(!folder||folder.length>250)||refresh!==null&&refresh!=='1')fail('Paramètres de consultation invalides.');
++    return json(await upstream('/connections/'+school[1]+'/school/'+school[2]+url.search));
++   }
++   const content=/^\/connections\/(ment-[a-f0-9-]{36})\/(detail|files)\/([a-f0-9]{64})$/.exec(path);
++   if(content&&request.method==='GET'&&!url.search){const route='/connections/'+content[1]+'/'+content[2]+'/'+content[3];return content[2]==='files'?await upstream(route,{binary:true}):json(await upstream(route));}
++   const match=/^\/connections\/(ment-[a-f0-9-]{36})(?:\/(status|agenda|homework|activity|sync))?$/.exec(path);
++   if(!match||!ID.test(match[1]))fail('Service introuvable.',404);
++   const [,id,action]=match;
++   if(!action&&request.method==='DELETE'&&!url.search)return json(await upstream('/connections/'+id,{method:'DELETE'}));
++   if(['status','agenda','homework'].includes(action)&&request.method==='GET'){
++    let suffix='';
++    if(action!=='status'){
++     if([...url.searchParams.keys()].some(key=>!['from','to'].includes(key))||url.searchParams.getAll('from').length!==1||url.searchParams.getAll('to').length!==1)fail('Période de consultation invalide.');
++     const from=url.searchParams.get('from'),to=url.searchParams.get('to');
++     if(!/^\d{4}-\d{2}-\d{2}$/.test(from||'')||!/^\d{4}-\d{2}-\d{2}$/.test(to||''))fail('Indiquez les dates de consultation.');
++     suffix='?'+new URLSearchParams({from,to});
++    }else if(url.search)fail('La demande contient des paramètres inattendus.');
++    return json(await upstream('/connections/'+id+'/'+action+suffix));
++   }
++   if(['activity','sync'].includes(action)&&request.method==='POST'&&!url.search){const input=await readJSON(request,1024);if(!exact(input,[]))fail('La demande contient des paramètres inattendus.');return json(await upstream('/connections/'+id+'/'+action,{method:'POST',body:{}}));}
++   fail('Service introuvable.',404);
++  }catch(error){
++   const known=error instanceof RequestError,status=known?error.status:502,code=known?error.code:'ENT_CONNECTOR_FAILURE';
++   let reference;
++   if(status>=500){
++    reference=crypto.randomUUID();
++    // Fixed fields only: never log error.message, URL, headers, user identity or credentials.
++    try{logger({event:'lapsus.ent.failure',reference,phase,code:code||'ENT_HTTP_'+status,status});}catch{}
++   }
++   return json({error:known?error.message:'Une erreur technique empêche la connexion ENT. Réessayez dans un instant.',...(code?{code}:{}),...(reference?{reference}:{})},status,clearCookie?{'Set-Cookie':cookieHeader('',0)}:{});
++  }
++ };
++}
++export const onRequest=createHandler();
+diff --git a/index.html b/index.html
+index 06f58ec..d669e8a 100644
+--- a/index.html
++++ b/index.html
+@@ -2,6 +2,8 @@
+ <html lang="fr">
+ <head>
+ <meta charset="utf-8">
++<meta name="referrer" content="no-referrer">
++<base href="/">
+ <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+ <meta name="robots" content="noindex">
+ <meta name="theme-color" content="#0b7a75">
+@@ -15,7 +17,7 @@
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=DM+Sans:wght@400;500;600&display=swap">
+-<link rel="stylesheet" href="style.css?v=21">
++<link rel="stylesheet" href="style.css?v=23">
+ <style>
+ [hidden]{display:none!important}
+ body.locked .top,body.locked .shell{display:none}
+@@ -55,8 +57,9 @@ a.btn{display:inline-block;text-decoration:none}
+   <nav id="nav" aria-label="Navigation"></nav>
+   <main id="main"></main>
+ </div>
++<script src="/passerelle-ent.js?v=1"></script>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.1/dist/umd/supabase.js"></script>
+ <script>if(!window.supabase)document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+-<script src="app.js?v=25"></script>
++<script src="app.js?v=27"></script>
+ </body>
+ </html>
+diff --git a/logo.svg b/logo.svg
+new file mode 100644
+index 0000000..1571fb2
+--- /dev/null
++++ b/logo.svg
+@@ -0,0 +1,6 @@
++<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
++  <rect width="64" height="64" rx="16" fill="#0b7a75"/>
++  <rect x="17" y="13" width="11" height="38" rx="5.5" fill="#ffffff"/>
++  <rect x="17" y="40" width="31" height="11" rx="5.5" fill="#ffffff" fill-opacity=".85"/>
++  <circle cx="45" cy="21" r="6" fill="#ffc857"/>
++</svg>
+diff --git a/passerelle-ent.js b/passerelle-ent.js
+new file mode 100644
+index 0000000..c3e1194
+--- /dev/null
++++ b/passerelle-ent.js
+@@ -0,0 +1,87 @@
++/* REST connector used by the existing Lapsus session. No ENT token lives here. */
++(function(root,factory){
++  const api=factory();
++  if(typeof module==='object'&&module.exports)module.exports=api;
++  else root.LapsusPasserelle=api;
++})(typeof globalThis!=='undefined'?globalThis:this,function(){
++  'use strict';
++  const ISSUER='https://repere.84.235.226.127.sslip.io/agenda';
++  const SCOPES=['courses','homework','exams','messages','news'];
++  const day=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value;
++  const text=(value,limit=4000)=>typeof value==='string'?value.slice(0,limit):'';
++  const parisDate=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(value));
++  function range(value){if(!value||!day(value.from)||!day(value.to)||value.from>value.to||Date.parse(value.to)-Date.parse(value.from)>93*86400000)throw new Error('La période demandée est invalide.');return value;}
++  function course(row){
++    if(!row||typeof row.id!=='string'||!row.id||row.id.length>200||typeof row.start!=='string'||typeof row.end!=='string'||!Number.isFinite(Date.parse(row.start))||!Number.isFinite(Date.parse(row.end))||Date.parse(row.end)<=Date.parse(row.start))throw new Error('L’emploi du temps reçu est incomplet. La dernière copie est conservée.');
++    return {uid:'passerelle-course:'+row.id,title:text(row.title,1000)||'Cours',location:text(row.location,1000),description:'',categories:text(row.subject,200),status:'CONFIRMED',allDay:false,start:new Date(row.start),end:new Date(row.end),date:parisDate(row.start),kind:'course',managed:true,sequence:Number.isSafeInteger(row.sequence)?row.sequence:0,props:[],raw:''};
++  }
++  function work(row){
++    if(!row||typeof row.id!=='string'||!row.id||row.id.length>200||!day(row.due)||!['homework','exam'].includes(row.kind))throw new Error('Le travail à faire reçu est incomplet. La dernière copie est conservée.');
++    return {id:'passerelle-work:'+row.id,title:text(row.title,1000)||'Travail à faire',subject:text(row.subject,200)||'Matière non précisée',notes:text(row.details,20000),due:row.due,type:row.kind==='exam'?'eval':'hw',auto:true,managed:true};
++  }
++  function replaceRange(previous,incoming,window,dateOf){
++    range(window);
++    const ids=new Set(incoming.map(row=>row.uid||row.id));
++    if(incoming.some(row=>dateOf(row)<window.from||dateOf(row)>window.to))throw new Error('Les données reçues dépassent la période demandée.');
++    return [...(previous||[]).filter(row=>{const date=dateOf(row);return (date<window.from||date>window.to)&&!ids.has(row.uid||row.id);}),...incoming];
++  }
++  function replaceCourses(previous,rows,window){if(!Array.isArray(rows))throw new Error('L’emploi du temps reçu est invalide.');return replaceRange(previous,rows.map(course),window,row=>row.date||parisDate(row.start)).sort((a,b)=>new Date(a.start)-new Date(b.start));}
++  function replaceWork(previous,rows,window){if(!Array.isArray(rows))throw new Error('Le travail à faire reçu est invalide.');return replaceRange(previous,rows.map(work),window,row=>row.due).sort((a,b)=>a.due.localeCompare(b.due));}
++  function captureCallback(location,history){
++    if(!location||location.pathname!=='/passerelle/ent/callback')return null;
++    const query=new URLSearchParams(location.search);
++    // Run before Supabase is initialized: this code belongs to Passerelle, not Supabase.
++    history.replaceState(null,'','/');
++    const value={code:query.get('code'),state:query.get('state'),iss:query.get('iss')};
++    if(!/^[A-Za-z0-9_-]{43}$/.test(value.code||'')||!/^[A-Za-z0-9_-]{43}$/.test(value.state||'')||value.iss!==ISSUER)return {error:'Le retour ENT est invalide ou incomplet. Relance la connexion depuis les réglages.'};
++    return value;
++  }
++  function metadata(value){
++    if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('La réponse de connexion ENT est invalide.');
++    if(value.connectionId===null)return {connectionId:null};
++    if(typeof value.connectionId!=='string'||!/^ment-[a-f0-9-]{36}$/i.test(value.connectionId)||!Array.isArray(value.scopes)||value.scopes.some(scope=>!SCOPES.includes(scope)))throw new Error('La réponse de connexion ENT est invalide.');
++    return {connectionId:value.connectionId,status:text(value.status,40),scopes:[...value.scopes],schoolName:text(value.schoolName,200),student:value.student?{name:text(value.student.name,200),className:text(value.student.className,100)}:null,lastSync:Number.isFinite(value.lastSync)?value.lastSync:null,lastAttempt:Number.isFinite(value.lastAttempt)?value.lastAttempt:null,lastError:text(value.lastError,500)||null,stale:!!value.stale,nextSyncAt:Number.isFinite(value.nextSyncAt)?value.nextSyncAt:null,sourceVersion:text(value.sourceVersion,100)||null};
++  }
++  function createClient({getAccessToken,fetcher=(...args)=>fetch(...args),base='/api/passerelle'}={}){
++    if(typeof getAccessToken!=='function')throw new Error('La session Lapsus est nécessaire.');
++    if(base!=='/api/passerelle')throw new Error('Le connecteur doit utiliser la fonction du site Lapsus.');
++    async function request(path,body,method,binary=false){
++      const token=await getAccessToken();
++      if(typeof token!=='string'||!token)throw Object.assign(new Error('Reconnecte-toi à Lapsus pour continuer.'),{status:401});
++      const response=await fetcher(base+path,{method:method||(body===undefined?'GET':'POST'),credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',Authorization:'Bearer '+token,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:AbortSignal.timeout(binary?40000:35000)});
++      if(binary&&response.ok){const blob=await response.blob();if(blob.size>15*1024*1024)throw new Error('Ce document dépasse 15 Mo.');return blob;}
++      let value;try{value=await response.json();}catch{throw new Error('La connexion ENT n’est pas disponible sur cette version de Lapsus.');}
++      if(!response.ok)throw Object.assign(new Error(text(value.error,500)||'La connexion ENT est momentanément indisponible.'),{status:response.status,code:value.code});
++      return value;
++    }
++    const connectionPath=id=>{if(!/^ment-[a-f0-9-]{36}$/i.test(id||''))throw new Error('Connexion ENT invalide.');return '/connections/'+encodeURIComponent(id);};
++    return {
++      async connect(scopes=SCOPES){
++        if(!Array.isArray(scopes)||!scopes.length||scopes.some(scope=>!SCOPES.includes(scope)))throw new Error('Choisis les informations à connecter.');
++        const result=await request('/connect',{scopes});let url;try{url=new URL(result.launchURL);}catch{throw new Error('Le lien de connexion ENT est invalide.');}
++        if(url.origin!==new URL(ISSUER).origin||url.pathname!=='/agenda/ent-connect'||url.username||url.password||url.hash||[...url.searchParams.keys()].some(key=>key!=='session')||!/^[A-Za-z0-9_-]{43}$/.test(url.searchParams.get('session')||''))throw new Error('Le lien de connexion ENT est invalide.');
++        return url.href;
++      },
++      async exchange(callback){if(callback?.error)throw new Error(callback.error);return metadata(await request('/exchange',{code:callback.code,state:callback.state,iss:callback.iss}));},
++      async current(){return metadata(await request('/connection'));},
++      async agenda(id,window){range(window);const result=await request(connectionPath(id)+'/agenda?'+new URLSearchParams(window));return {...metadata(result),events:result.events};},
++      async homework(id,window){range(window);const result=await request(connectionPath(id)+'/homework?'+new URLSearchParams(window));return {...metadata(result),items:result.items,available:result.available===true,warning:text(result.warning,500)||null};},
++      async school(id,section,query={}){
++        if(!['messages','news'].includes(section)||Object.keys(query).some(key=>!['offset','folder','refresh'].includes(key)))throw new Error('Rubrique ENT invalide.');
++        const result=await request(connectionPath(id)+'/school/'+section+(Object.keys(query).length?'?'+new URLSearchParams(query):''));
++        if(typeof result.available!=='boolean'||!Array.isArray(result.items)||result.available&&result.items.some(item=>!item||!/^([a-f0-9]{64})$/.test(item.ref||'')||typeof item.title!=='string'))throw new Error('La réponse ENT est incomplète. La dernière copie est conservée.');
++        return {...result,...metadata(result),section,warning:text(result.warning,500)||null};
++      },
++      async detail(id,ref){if(!/^[a-f0-9]{64}$/.test(ref||''))throw new Error('Contenu ENT invalide.');const value=await request(connectionPath(id)+'/detail/'+ref);if(!['message','news'].includes(value.kind))throw new Error('Contenu ENT invalide.');return {...value,...metadata(value)};},
++      async file(id,ref){if(!/^[a-f0-9]{64}$/.test(ref||''))throw new Error('Document ENT invalide.');return request(connectionPath(id)+'/files/'+ref,undefined,'GET',true);},
++      async activity(id){return metadata(await request(connectionPath(id)+'/activity',{}));},
++      async sync(id){return metadata(await request(connectionPath(id)+'/sync',{}));},
++      async disconnect(id){await request(connectionPath(id),undefined,'DELETE');},
++      async disconnectCurrent({knownConnection=false}={}){
++        try{await request('/connection',undefined,'DELETE');}
++        catch(error){if(knownConnection||error.status!==503||error.code!=='ENT_CONNECTOR_UNCONFIGURED')throw error;}
++      }
++    };
++  }
++  return {createClient,captureCallback,replaceCourses,replaceWork,metadata,parisDate};
++});
+diff --git a/style.css b/style.css
+index a661b0b..5479be4 100644
+--- a/style.css
++++ b/style.css
+@@ -259,3 +259,10 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:10
+ .pbt span{color:var(--muted)}
+ .pbx{padding:2px 6px;font-size:22px;line-height:1}
+ @media (max-width:760px){.pbanner{flex-wrap:wrap}.pbt{flex:1 1 calc(100% - 60px)}.pbanner .btn{margin-left:54px}}
++
++/* Direct ENT connection follows the same restrained Lapsus panels. */
++.ent-connection{margin-bottom:20px}.ent-connection-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.ent-connection-heading>div{flex:1;min-width:150px}.ent-connection-heading h2{margin:0;font-size:19px}.ent-connection-heading .m{margin:3px 0 0}.ent-connection-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:var(--accent-soft);color:var(--accent)}.ent-connection-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}.ent-notice{font-size:13px;line-height:1.6;padding:11px 13px;border-radius:12px;background:var(--accent-soft);overflow-wrap:anywhere}.ent-manual{margin-top:18px}.ent-manual>summary{cursor:pointer;font-weight:600;margin-bottom:14px}.ent-manual .panel{margin-top:12px}@media(max-width:480px){.ent-connection-actions .btn{flex:1 1 100%}.ent-connection-heading .badge{max-width:100%;white-space:normal}.ent-connection-actions .lnk2{padding:8px 0}}
++
++.ent-powered{margin:20px 0 0!important;font-size:11px;line-height:1.6;text-align:center;letter-spacing:.02em}.ent-powered a{color:var(--muted);text-decoration:none}.ent-powered a:hover{color:var(--accent)}.ent-powered strong{font-weight:600;letter-spacing:.08em;margin-left:2px}
++
++.ent-data-types{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:16px;color:var(--muted);font-size:12px}.ent-data-types>span{display:inline-flex;align-items:center;gap:6px}.ent-data-types svg{color:var(--accent);flex:none}.ent-mail{display:block;width:100%;font:inherit;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;cursor:pointer;color:inherit}.ent-mail:hover{background:var(--accent-soft)}.ent-read-news{display:inline-flex;align-items:center;gap:6px;margin-top:10px}.ent-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;font-size:14px}.ent-message-part{padding:14px 0;border-bottom:1px solid var(--line)}.ent-document{display:flex;align-items:center;gap:8px;max-width:100%;white-space:normal;overflow-wrap:anywhere;margin-top:8px;text-align:left;font-size:12px}.ent-document svg{flex:none}[data-ent-content]{max-height:75dvh;overflow:auto;overscroll-behavior:contain}.ent-mail:focus-visible,.ent-read-news:focus-visible,.ent-document:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+diff --git a/tests/cloudflare-outbound.fixture.mjs b/tests/cloudflare-outbound.fixture.mjs
+new file mode 100644
+index 0000000..1ec8e77
+--- /dev/null
++++ b/tests/cloudflare-outbound.fixture.mjs
+@@ -0,0 +1,22 @@
++// Synthetic Auth and Passerelle. The runtime configuration denies Internet access.
++const AUTH='fixture-auth.supabase.co',ISSUER='repere.84.235.226.127.sslip.io';
++export default {async fetch(request){
++  const url=new URL(request.url),scenario=request.headers.get('x-fixture-scenario');
++  if(url.hostname===AUTH&&url.pathname==='/auth/v1/user'){
++    if(request.headers.get('apikey')!=='sb_publishable_fixture_public_key_12345')return new Response('Bad fixture key',{status:400});
++    if(scenario==='auth-redirect')return Response.redirect('https://must-not-receive-credentials.invalid/auth',302);
++    if(scenario==='auth-expired')return Response.json({error:'Expired test session'},{status:401});
++    return Response.json({id:'11111111-1111-4111-8111-111111111111',is_anonymous:false});
++  }
++  if(url.hostname===ISSUER&&url.pathname.startsWith('/agenda/api/managed-ent/')){
++    if(request.headers.get('authorization')!=='Bearer '+'k'.repeat(43)||request.headers.get('x-lapsus-user')!=='11111111-1111-4111-8111-111111111111')return new Response('Bad fixture identity',{status:400});
++    if(scenario==='upstream-redirect')return Response.redirect('https://must-not-receive-credentials.invalid/calendar',307);
++    if(url.pathname.endsWith('/sessions')){
++      const input=await request.json();
++      if(input.externalUserId!=='11111111-1111-4111-8111-111111111111'||!/^[A-Za-z0-9_-]{43}$/.test(input.codeChallenge)||!/^[A-Za-z0-9_-]{43}$/.test(input.state))return new Response('Bad fixture transaction',{status:400});
++      return Response.json({launchURL:'https://'+ISSUER+'/agenda/ent-connect?session='+'s'.repeat(43),expiresAt:Date.now()+720000});
++    }
++    return Response.json({connectionId:null});
++  }
++  return new Response('Unexpected fixture destination',{status:418});
++}};
+diff --git a/tests/cloudflare-passerelle.test.mjs b/tests/cloudflare-passerelle.test.mjs
+new file mode 100644
+index 0000000..6414c94
+--- /dev/null
++++ b/tests/cloudflare-passerelle.test.mjs
+@@ -0,0 +1,119 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import {createHandler} from '../functions/api/passerelle/[[path]].js';
++
++const ORIGIN='https://mon-ent.pages.dev',ISSUER='https://repere.84.235.226.127.sslip.io/agenda',AUTH='https://test-project.supabase.co';
++const USER='11111111-1111-4111-8111-111111111111',OTHER='22222222-2222-4222-8222-222222222222';
++const ID='ment-33333333-3333-4333-8333-333333333333';
++const env={PASSERELLE_MANAGED_KEY:'k'.repeat(43),LAPSUS_SUPABASE_URL:AUTH,LAPSUS_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test_public_key_123456789'};
++const token='synthetic-valid-lapsus-user-session-token-123456';
++function fixture(){
++ let time=Date.now(),user=USER,authStatus=200,upstreamStatus=200,session;
++ const calls=[],logs=[];
++ const handle=createHandler({now:()=>time,logger:entry=>logs.push(entry),fetcher:async(url,options={})=>{
++  calls.push({url:String(url),options});assert.equal(options.redirect,'manual');
++  if(url===AUTH+'/auth/v1/user'&&authStatus===304)return new Response(null,{status:304});
++  if(url===AUTH+'/auth/v1/user')return Response.json({id:user,is_anonymous:false},{status:authStatus});
++  assert.ok(String(url).startsWith(ISSUER+'/api/managed-ent/'),'only fixed upstream may be called');
++  assert.equal(options.headers.Authorization,'Bearer '+env.PASSERELLE_MANAGED_KEY);assert.equal(options.headers['X-Lapsus-User'],user);
++  assert.equal(options.redirect,'manual');assert.ok(!JSON.stringify(options).includes(token));
++  if(upstreamStatus===304)return new Response(null,{status:304});
++  if(upstreamStatus!==200)return Response.json({error:'synthetic-private-upstream-detail'},{status:upstreamStatus});
++  if(String(url).endsWith('/sessions')){session=JSON.parse(options.body);return Response.json({launchURL:ISSUER+'/ent-connect?session='+'s'.repeat(43),sessionId:'must-not-be-returned',expiresAt:time+12*60000,connectionId:ID});}
++  if(String(url).includes('/files/'))return new Response('%PDF-synthetic',{headers:{'Content-Disposition':'attachment; filename=Test.pdf'}});
++  if(String(url).endsWith('/exchange')){const body=JSON.parse(options.body);assert.equal(body.code,'c'.repeat(43));assert.equal(typeof body.codeVerifier,'string');assert.equal(body.codeVerifier.length,43);return Response.json({connectionId:ID,status:'ready',lastSync:time});}
++  return Response.json({connectionId:ID,status:'ready',events:[],lastSync:time});
++ }});
++ async function request(path,{body,method,auth=true,origin=ORIGIN,cookie,environment=env,headers={}}={}){
++  const response=await handle({env:environment,request:new Request(ORIGIN+'/api/passerelle'+path,{method:method||(body===undefined?'GET':'POST'),headers:{...(auth?{Authorization:'Bearer '+token}:{}),...(origin?{Origin:origin}:{}),...(body!==undefined?{'Content-Type':'application/json'}:{}),...(cookie?{Cookie:cookie}:{}),...headers},...(body!==undefined?{body:JSON.stringify(body)}:{})})});
++  return {status:response.status,headers:response.headers,body:response.headers.get('content-type')?.includes('application/octet-stream')?await response.text():await response.json()};
++ }
++ return {request,calls,logs,get session(){return session;},set user(value){user=value;},set time(value){time=value;},get time(){return time;},set authStatus(value){authStatus=value;},set upstreamStatus(value){upstreamStatus=value;}};
++}
++
++test('Cloudflare validates the current Lapsus user and starts a PKCE transaction without revealing server keys',async()=>{
++ const f=fixture(),result=await f.request('/connect',{body:{scopes:['courses','homework']}});
++ assert.equal(result.status,200);assert.equal(result.body.launchURL,ISSUER+'/ent-connect?session='+'s'.repeat(43));assert.equal(result.body.sessionId,undefined);
++ assert.equal(f.session.externalUserId,USER);assert.deepEqual(f.session.scopes,['courses','homework']);assert.match(f.session.state,/^[A-Za-z0-9_-]{43}$/);assert.match(f.session.codeChallenge,/^[A-Za-z0-9_-]{43}$/);
++ const cookie=result.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Lax/);assert.match(cookie,/Path=\/api\/passerelle/);
++ for(const value of [USER,f.session.state,env.PASSERELLE_MANAGED_KEY,token])assert.ok(!cookie.includes(value));
++ assert.equal(result.headers.get('cache-control'),'no-store');assert.ok(!JSON.stringify(result.body).includes(env.PASSERELLE_MANAGED_KEY));
++ assert.equal(f.calls[0].url,AUTH+'/auth/v1/user');assert.equal(f.calls[0].options.headers.apikey,env.LAPSUS_SUPABASE_PUBLISHABLE_KEY);
++});
++
++test('Cloudflare rejects missing or expired authentication, foreign origins and client-supplied account identities',async()=>{
++ const f=fixture();assert.equal((await f.request('/connection',{auth:false})).status,401);assert.equal(f.calls.length,0);
++ assert.equal((await f.request('/connect',{origin:'https://outside.invalid',body:{scopes:['courses']}})).status,403);
++ assert.equal((await f.request('/connect',{origin:null,body:{scopes:['courses']}})).status,403);
++ assert.equal((await f.request('/connect',{body:{scopes:['courses'],externalUserId:OTHER}})).status,400);assert.equal(f.calls.filter(call=>call.url.endsWith('/sessions')).length,0);
++ f.authStatus=401;assert.equal((await f.request('/connection')).status,401);assert.equal(f.calls.filter(call=>call.url.startsWith(ISSUER)).length,0);
++});
++
++test('the encrypted callback transaction is bound to the Lapsus account, state, issuer and expiration',async()=>{
++ const f=fixture(),started=await f.request('/connect',{body:{scopes:['courses']}}),cookie=started.headers.get('set-cookie').split(';')[0];
++ const body={code:'c'.repeat(43),state:f.session.state,iss:ISSUER};
++ const good=await f.request('/exchange',{body,cookie});assert.equal(good.status,200);assert.equal(good.body.connectionId,ID);assert.match(good.headers.get('set-cookie'),/Max-Age=0/);
++ for(const patch of [{state:'x'.repeat(43)},{iss:'https://outside.invalid'},{code:'invalid'}])assert.equal((await f.request('/exchange',{body:{...body,...patch},cookie})).status,409);
++ f.user=OTHER;assert.equal((await f.request('/exchange',{body,cookie})).status,409);f.user=USER;
++ f.time+=13*60000;assert.equal((await f.request('/exchange',{body,cookie})).status,409);
++ assert.equal((await f.request('/exchange',{body,cookie:'lapsus_ent_transaction=corrupted'})).status,410);
++});
++
++test('Cloudflare proxies only the allowed REST paths with the server-verified subject and redacts upstream failures',async()=>{
++ const f=fixture();assert.equal((await f.request('/connection',{headers:{'X-Lapsus-User':OTHER}})).status,200);
++ assert.equal((await f.request('/connections/'+ID+'/agenda?from=2026-11-01&to=2026-11-15')).status,200);
++ assert.equal((await f.request('/connections/'+ID+'/sync',{body:{}})).status,200);
++ assert.equal((await f.request('/connections/'+ID,{method:'DELETE'})).status,200);
++ assert.equal((await f.request('/connection',{method:'DELETE',headers:{'X-Lapsus-User':OTHER}})).status,200);
++ const cleanup=f.calls.at(-1);assert.ok(cleanup.url.endsWith('/api/managed-ent/connection'));assert.equal(cleanup.options.method,'DELETE');assert.equal(cleanup.options.headers['X-Lapsus-User'],USER);
++ assert.equal((await f.request('/connection',{method:'DELETE',auth:false})).status,401);
++ assert.equal((await f.request('/connection?user='+OTHER,{method:'DELETE'})).status,404);
++ for(const path of ['/admin','/connections/'+ID+'/agenda?url=https://outside.invalid','/connections/not-an-id/status','/connections/'+ID+'/status?externalUserId='+OTHER])assert.ok((await f.request(path)).status>=400);
++ f.upstreamStatus=503;const unavailable=await f.request('/connection');assert.equal(unavailable.status,503);assert.ok(!JSON.stringify(unavailable.body).includes('synthetic-private-upstream-detail'));
++ const unconfigured=await f.request('/connection',{environment:{...env,PASSERELLE_MANAGED_KEY:''}});assert.equal(unconfigured.status,503);assert.equal(unconfigured.body.code,'ENT_CONNECTOR_UNCONFIGURED');
++ assert.equal(unavailable.body.code,undefined,'an upstream outage must never be confused with a connector that was never configured');
++ assert.equal((await f.request('/connection',{environment:{...env,LAPSUS_SUPABASE_PUBLISHABLE_KEY:'sb_secret_must_never_be_used'}})).status,503);
++});
++
++
++test('Cloudflare supports explicit mail and news permissions and only the fixed scoped read routes',async()=>{
++ const f=fixture();const started=await f.request('/connect',{body:{scopes:['courses','homework','exams','messages','news']}});assert.equal(started.status,200);assert.deepEqual(f.session.scopes,['courses','homework','exams','messages','news']);
++ for(const path of ['/school/messages?offset=20&folder=inbox','/school/news?refresh=1','/detail/'+'a'.repeat(64)])assert.equal((await f.request('/connections/'+ID+path)).status,200,path);
++ const download=await f.request('/connections/'+ID+'/files/'+'b'.repeat(64));assert.equal(download.status,200);assert.equal(download.body,'%PDF-synthetic');assert.equal(download.headers.get('cache-control'),'no-store');
++ for(const path of ['/school/grades','/school/messages?offset=0&offset=20','/school/news?folder=inbox','/detail/not-a-reference','/files/'+'b'.repeat(64)+'?url=https://outside.invalid'])assert.ok((await f.request('/connections/'+ID+path)).status>=400,path);
++ assert.equal((await f.request('/connections/'+ID+'/school/messages',{auth:false})).status,401);
++});
++
++test('every Auth or Passerelle redirect is refused before credentials can follow its destination',async()=>{
++ for(const status of [300,301,302,303,304,307,308]){
++  const auth=fixture();auth.authStatus=status;
++  const a=await auth.request('/connection');assert.equal(a.status,502);assert.equal(a.body.code,'LAPSUS_AUTH_REDIRECT');assert.equal(auth.calls.length,1);
++  const upstream=fixture();upstream.upstreamStatus=status;
++  const b=await upstream.request('/connection');assert.equal(b.status,502);assert.equal(b.body.code,'PASSERELLE_REDIRECT');assert.equal(upstream.calls.length,2);
++  for(const [f,result,phase]of [[auth,a,'authentication'],[upstream,b,'passerelle']]){
++   assert.match(result.body.reference,/^[a-f0-9-]{36}$/);assert.equal(f.logs.length,1);assert.equal(f.logs[0].reference,result.body.reference);assert.equal(f.logs[0].phase,phase);
++   assert.deepEqual(Object.keys(f.logs[0]).sort(),['code','event','phase','reference','status']);
++   for(const secret of [USER,OTHER,token,env.PASSERELLE_MANAGED_KEY,'synthetic-private-upstream-detail'])assert.ok(!JSON.stringify(f.logs).includes(secret));
++  }
++ }
++});
++
++test('transport failures have a bounded diagnostic without raw exceptions, URLs or credentials',async()=>{
++ for(const target of ['auth','passerelle']){
++  const logs=[],calls=[];
++  const handle=createHandler({logger:row=>logs.push(row),fetcher:async(url,options)=>{
++   calls.push({url,options});assert.equal(options.redirect,'manual');
++   if(target==='auth'||!String(url).startsWith(AUTH))throw new TypeError('private-exception '+token+' https://private.invalid/?token='+env.PASSERELLE_MANAGED_KEY);
++   return Response.json({id:USER});
++  }});
++  const response=await handle({env,request:new Request(ORIGIN+'/api/passerelle/connection',{headers:{Origin:ORIGIN,Authorization:'Bearer '+token}})}),body=await response.json();
++  assert.equal(response.status,502);assert.equal(body.code,target==='auth'?'LAPSUS_AUTH_UNAVAILABLE':'PASSERELLE_UNAVAILABLE');assert.equal(calls.length,target==='auth'?1:2);assert.equal(logs.length,1);assert.equal(logs[0].reference,body.reference);
++  for(const privateValue of [token,env.PASSERELLE_MANAGED_KEY,'private.invalid','private-exception',USER])assert.ok(!(JSON.stringify(body)+JSON.stringify(logs)).includes(privateValue));
++ }
++});
++
++test('a failing diagnostics sink cannot hide the original connection failure',async()=>{
++ const handle=createHandler({logger(){throw new Error('Fixture logger failure');},fetcher:async()=>{throw new Error('Fixture network failure');}});
++ const response=await handle({env,request:new Request(ORIGIN+'/api/passerelle/connection',{headers:{Origin:ORIGIN,Authorization:'Bearer '+token}})}),body=await response.json();
++ assert.equal(response.status,502);assert.equal(body.code,'LAPSUS_AUTH_UNAVAILABLE');assert.match(body.reference,/^[a-f0-9-]{36}$/);
++});
+diff --git a/tests/cloudflare-workerd.fixture.mjs b/tests/cloudflare-workerd.fixture.mjs
+new file mode 100644
+index 0000000..b8cbbb2
+--- /dev/null
++++ b/tests/cloudflare-workerd.fixture.mjs
+@@ -0,0 +1,26 @@
++// Test entry point only. This file is never deployed as a Pages Function.
++import {createHandler} from 'connector.js';
++const ORIGIN='https://mon-ent.pages.dev';
++const AUTH='https://fixture-auth.supabase.co';
++const KEY='k'.repeat(43);
++export default {async fetch(request){
++  const path=new URL(request.url).pathname,scenario=request.headers.get('x-fixture-scenario')||'ready';
++  if(path==='/__unsupported-redirect'){
++    try{new Request(AUTH,{redirect:'error'});return Response.json({accepted:true});}
++    catch(error){return Response.json({accepted:false,name:error.name,message:error.message});}
++  }
++  const calls=[],logs=[];
++  const handle=createHandler({logger:entry=>logs.push(entry),fetcher:async(url,options)=>{
++    calls.push({target:String(url).startsWith(AUTH)?'auth':'passerelle',redirect:options.redirect});
++    if(scenario==='auth-network'&&String(url).startsWith(AUTH)||scenario==='upstream-network'&&!String(url).startsWith(AUTH))throw new Error('secret-diagnostic-must-not-appear');
++    const headers=new Headers(options.headers);headers.set('x-fixture-scenario',scenario);
++    return fetch(url,{...options,headers});
++  }});
++  const response=await handle({request:new Request(ORIGIN+path,{method:request.method,headers:request.headers,...(request.method==='GET'?{}:{body:request.body})}),env:{PASSERELLE_MANAGED_KEY:KEY,LAPSUS_SUPABASE_URL:AUTH,LAPSUS_SUPABASE_PUBLISHABLE_KEY:'sb_publishable_fixture_public_key_12345'}});
++  const headers=new Headers(response.headers);
++  headers.set('x-fixture-auth-calls',String(calls.filter(row=>row.target==='auth').length));
++  headers.set('x-fixture-upstream-calls',String(calls.filter(row=>row.target==='passerelle').length));
++  headers.set('x-fixture-redirect-modes',calls.map(row=>row.redirect).join(','));
++  headers.set('x-fixture-diagnostics',JSON.stringify(logs));
++  return new Response(response.body,{status:response.status,headers});
++}};
+diff --git a/tests/cloudflare-workerd.smoke.mjs b/tests/cloudflare-workerd.smoke.mjs
+new file mode 100644
+index 0000000..a61fcae
+--- /dev/null
++++ b/tests/cloudflare-workerd.smoke.mjs
+@@ -0,0 +1,50 @@
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import {spawn} from 'node:child_process';
++import {fileURLToPath} from 'node:url';
++import net from 'node:net';
++
++const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
++const binary=process.env.WORKERD_BINARY;
++if(!binary||!fs.existsSync(binary))throw new Error('Set WORKERD_BINARY to the installed workerd executable (tested with workerd@1.20261106.1).');
++const temp=fs.mkdtempSync(path.join(os.tmpdir(),'lapsus-workerd-'));
++const server=net.createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise(resolve=>server.close(resolve));
++for(const [from,to]of [['functions/api/passerelle/[[path]].js','connector.js'],['tests/cloudflare-workerd.fixture.mjs','entry.mjs'],['tests/cloudflare-outbound.fixture.mjs','outbound.mjs']])fs.copyFileSync(path.join(project,from),path.join(temp,to));
++fs.writeFileSync(path.join(temp,'config.capnp'),`using Workerd = import "/workerd/workerd.capnp";
++const config :Workerd.Config = (
++ services = [
++  (name = "main", worker = (compatibilityDate = "2026-11-06", modules = [(name = "entry.mjs", esModule = embed "entry.mjs"), (name = "connector.js", esModule = embed "connector.js")], globalOutbound = (name = "fixtures"))),
++  (name = "fixtures", worker = (compatibilityDate = "2026-11-06", modules = [(name = "outbound.mjs", esModule = embed "outbound.mjs")], globalOutbound = (name = "internet"))),
++  (name = "internet", network = (allow = []))
++ ],
++ sockets = [(name = "http", address = "127.0.0.1:${port}", http = (), service = "main")]
++);`);
++const child=spawn(binary,['serve',path.join(temp,'config.capnp')],{stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',value=>output+=value);child.stderr.on('data',value=>output+=value);
++const closed=new Promise(resolve=>child.once('close',resolve)),root='http://127.0.0.1:'+port;
++const token='synthetic-lapsus-session-token-123456789';
++async function request(scenario='ready',route='/api/passerelle/connection',body){
++ const response=await fetch(root+route,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+token,Origin:'https://mon-ent.pages.dev','x-fixture-scenario':scenario,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(10000)});
++ return {response,body:await response.json()};
++}
++try{
++ let ready=false;
++ for(let i=0;i<80;i++){
++  if(child.exitCode!==null)throw new Error('workerd startup failed: '+output.slice(-3000));
++  try{const response=await fetch(root+'/__unsupported-redirect',{signal:AbortSignal.timeout(1000)});const value=await response.json();assert.equal(value.accepted,false);assert.equal(value.name,'TypeError');assert.match(value.message,/redirect/i);ready=true;break;}catch{}
++  await new Promise(resolve=>setTimeout(resolve,100));
++ }
++ assert.equal(ready,true,'workerd must actually start and reject the original unsupported option');
++ let result=await request();assert.equal(result.response.status,200);assert.equal(result.body.connectionId,null);assert.equal(result.response.headers.get('x-fixture-redirect-modes'),'manual,manual');
++ result=await request('auth-expired');assert.equal(result.response.status,401);assert.equal(result.response.headers.get('x-fixture-upstream-calls'),'0');
++ for(const [scenario,code,phase,upstream]of [['auth-redirect','LAPSUS_AUTH_REDIRECT','authentication','0'],['upstream-redirect','PASSERELLE_REDIRECT','passerelle','1'],['auth-network','LAPSUS_AUTH_UNAVAILABLE','authentication','0'],['upstream-network','PASSERELLE_UNAVAILABLE','passerelle','1']]){
++  result=await request(scenario);assert.equal(result.response.status,502);assert.equal(result.body.code,code);assert.match(result.body.reference,/^[a-f0-9-]{36}$/);assert.equal(result.response.headers.get('x-fixture-upstream-calls'),upstream);
++  const diagnostic=JSON.parse(result.response.headers.get('x-fixture-diagnostics'))[0];assert.equal(diagnostic.reference,result.body.reference);assert.equal(diagnostic.phase,phase);assert.deepEqual(Object.keys(diagnostic).sort(),['code','event','phase','reference','status']);
++  for(const secret of [token,'k'.repeat(43),'secret-diagnostic-must-not-appear','11111111-1111-4111-8111-111111111111'])assert.ok(!(JSON.stringify(result.body)+JSON.stringify(diagnostic)).includes(secret));
++ }
++ result=await request('ready','/api/passerelle/connect',{scopes:['courses','homework','exams','messages','news']});assert.equal(result.response.status,200);assert.match(result.body.launchURL,/\/agenda\/ent-connect\?session=/);assert.match(result.response.headers.get('set-cookie'),/HttpOnly/);assert.match(result.response.headers.get('set-cookie'),/Secure/);
++ console.log(JSON.stringify({ok:true,runtime:'workerd@1.20261106.1',originalBugReproduced:true,authAndPasserelleFetch:true,expiredSession401:true,redirectsRejected:true,credentialsNeverForwarded:true,PKCEAndEncryptedCookie:true,networkFailuresDistinguished:true,safeDiagnostics:true,externalNetworkDenied:true,realENTCalls:0,realEmailsSent:0}));
++}finally{
++ child.kill('SIGTERM');await Promise.race([closed,new Promise(resolve=>setTimeout(resolve,2000))]);if(child.exitCode===null){child.kill('SIGKILL');await closed;}fs.rmSync(temp,{recursive:true,force:true});
++}
+diff --git a/tests/passerelle-browser.smoke.mjs b/tests/passerelle-browser.smoke.mjs
+new file mode 100644
+index 0000000..42dbfb2
+--- /dev/null
++++ b/tests/passerelle-browser.smoke.mjs
+@@ -0,0 +1,135 @@
++import http from 'node:http';
++import fs from 'node:fs';
++import path from 'node:path';
++import assert from 'node:assert/strict';
++import {fileURLToPath} from 'node:url';
++const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
++const folder=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
++const server=http.createServer((req,res)=>{
++  let name=new URL(req.url,'http://localhost').pathname;
++  if(name==='/'||name==='/passerelle/ent/callback')name='/index.html';
++  const file=path.resolve(folder,'.'+name);
++  if(!file.startsWith(folder+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404).end();return;}
++  const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
++  res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream','Cache-Control':'no-store'});fs.createReadStream(file).pipe(res);
++});
++await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
++const root='http://127.0.0.1:'+server.address().port;
++const now=Date.now(),today=new Date(),day=value=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Paris',year:'numeric',month:'2-digit',day:'2-digit'}).format(value);
++const add=count=>new Date(today.getTime()+count*86400000),tomorrow=day(add(1));
++const connectionId='ment-11111111-1111-4111-8111-111111111111';
++let mailMode='ready',active=false,revision='source-a',phase=1,gate=null,gateEntered=false,releaseGate,deleted=0,exchanged=0,requests=[],cleanupStatus=200,rpcCalls=0,cleanupOrder=[];
++const meta=()=>({connectionId,status:'ready',scopes:['courses','homework','exams','messages','news'],schoolName:'Lycée synthétique',student:{name:'Élève synthétique',className:'Classe de test'},lastSync:now,lastAttempt:now,stale:false,nextSyncAt:now+120000,sourceVersion:revision});
++const tokenFor=user=>'Bearer synthetic-lapsus-'+user;
++let browser;
++const errors=[],external=[];
++try{
++ browser=await chromium.launch({headless:true,args:['--renderer-process-limit=1']});
++ const context=await browser.newContext({viewport:{width:390,height:844},locale:'fr-FR',timezoneId:'Europe/Paris',serviceWorkers:'block'});
++ await context.addInitScript(()=>{
++   window.__BOOT_MS=3000;window.__fixtureUser={id:'test-a',email:'test-a@example.invalid',created_at:'2026-01-01T00:00:00Z'};
++   localStorage.setItem('u:test-a:icsText',JSON.stringify('BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:manual-import\nDTSTART:20261105T120000Z\nDTEND:20261105T130000Z\nSUMMARY:Cours importé manuellement\nEND:VEVENT\nEND:VCALENDAR'));
++ });
++ await context.route('https://fonts.googleapis.com/**',route=>route.fulfill({contentType:'text/css',body:''}));
++ await context.route('https://fonts.gstatic.com/**',route=>route.abort());
++ await context.route('https://cdn.jsdelivr.net/npm/@supabase/**',route=>route.fulfill({contentType:'application/javascript',body:`window.supabase={createClient(){window.__supabaseSawQuery=location.search;const chain=()=>{const row={select(){return this},order(){return this},limit(){return this},eq(){return this},upsert(){return this},delete(){return this},maybeSingle(){return Promise.resolve({data:null,error:null})},then(resolve){const data=window.__fixtureUser.id==='test-a'?[{id:'manual-homework',title:'Mon devoir personnel',subject:'Français',due:'${tomorrow}',notes:'Note personnelle',done:false}]:[];return Promise.resolve({data,error:null}).then(resolve)}};return row};return {from(name){if(name==='homework')return chain();const row=chain();row.then=resolve=>Promise.resolve({data:[],error:null}).then(resolve);return row},async rpc(name){if(name!=='delete_my_account')throw new Error('Unexpected RPC');await window.__recordFixtureRPC();return {error:window.__fixtureRPCError||null}},auth:{async getSession(){return {data:{session:window.__fixtureUser?{user:window.__fixtureUser,access_token:'synthetic-lapsus-'+window.__fixtureUser.id}:null}}},onAuthStateChange(fn){window.__fixtureAuthEvent=fn;return {data:{subscription:{unsubscribe(){}}}}},async signOut(){window.__fixtureUser=null;window.__fixtureAuthEvent?.('SIGNED_OUT');return {error:null}}}}}};` }));
++ await context.route('https://repere.84.235.226.127.sslip.io/agenda/ent-connect?**',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><h1>Connexion ENT de test</h1>'}));
++ await context.route(root+'/api/passerelle/**',async route=>{
++  const request=route.request(),url=new URL(request.url()),suffix=url.pathname.slice('/api/passerelle'.length),authorization=request.headers().authorization;
++  requests.push({path:suffix,method:request.method(),authorization});
++  assert.ok(authorization===tokenFor('test-a')||authorization===tokenFor('test-b'));
++  const json=(value,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(value)});
++  if(suffix==='/connect')return json({launchURL:'https://repere.84.235.226.127.sslip.io/agenda/ent-connect?session='+'x'.repeat(43)});
++  if(suffix==='/exchange'){exchanged++;assert.deepEqual(request.postDataJSON(),{code:'c'.repeat(43),state:'s'.repeat(43),iss:'https://repere.84.235.226.127.sslip.io/agenda'});active=true;return json(meta());}
++  if(suffix==='/connection'&&request.method()==='DELETE'){
++    if(cleanupStatus!==200)return json({error:'Nettoyage ENT temporairement indisponible'},cleanupStatus);
++    cleanupOrder.push('cleanup');if(authorization===tokenFor('test-a')){active=false;deleted++;}return json({ok:true});
++  }
++  if(suffix==='/connection')return json(active&&authorization===tokenFor('test-a')?meta():{connectionId:null});
++  if(suffix==='/connections/'+connectionId&&request.method()==='DELETE'){active=false;deleted++;return json({ok:true});}
++  if(/\/(?:activity|sync)$/.test(suffix))return json(meta());
++  if(suffix.endsWith('/school/messages')&&mailMode==='failure')return json({error:'Panne temporaire de la messagerie'},503);
++  if(suffix.endsWith('/school/messages')&&mailMode==='unavailable')return json({...meta(),available:false,items:[],hasMore:false,warning:'La messagerie n’est pas fournie par cet ENT.'});
++  if(suffix.endsWith('/school/messages'))return json({...meta(),available:true,items:[{ref:(url.searchParams.get('offset')?'d':'a').repeat(64),title:url.searchParams.get('offset')?'Mail précédent':'Réunion des élèves',sender:'Vie scolaire',date:tomorrow+'T10:00:00Z',preview:'Une information pour demain',read:false}],hasMore:!url.searchParams.get('offset'),offset:Number(url.searchParams.get('offset')||0)});
++  if(suffix.endsWith('/school/news'))return json({...meta(),available:true,items:[{ref:'b'.repeat(64),title:'Actualité du lycée',date:tomorrow+'T10:00:00Z',preview:'Présentation de la sortie'}],hasMore:false});
++  if(suffix.endsWith('/detail/'+'a'.repeat(64))||suffix.endsWith('/detail/'+'d'.repeat(64)))return json({...meta(),kind:'message',title:'Réunion des élèves',items:[{author:'Vie scolaire',date:tomorrow+'T10:00:00Z',text:'Contenu intégral du mail <script>alert(1)</script>',files:[{ref:'c'.repeat(64),name:'Document.pdf'}]}]});
++  if(suffix.endsWith('/detail/'+'b'.repeat(64)))return json({...meta(),kind:'news',title:'Actualité du lycée',author:'Le lycée',text:'Tous les détails de la sortie',files:[]});
++  if(suffix.endsWith('/files/'+'c'.repeat(64)))return route.fulfill({status:200,contentType:'application/octet-stream',body:Buffer.from('%PDF-test')});
++  if(suffix.endsWith('/agenda')){
++    if(gate){gateEntered=true;await gate;}
++    const date=tomorrow,rows=revision==='source-b'?[{id:'new-profile',title:'Nouveau profil',start:date+'T08:00:00Z',end:date+'T09:00:00Z',location:'Salle B',subject:'Mathématiques'}]:[{id:'stable',title:'Exercices et contrôle de connaissances',start:date+(phase===1?'T09:00:00Z':'T10:00:00Z'),end:date+(phase===1?'T10:00:00Z':'T11:00:00Z'),location:'Salle A',subject:'Mathématiques'},...(phase===1?[{id:'removed',title:'Cours supprimé ensuite',start:date+'T11:00:00Z',end:date+'T12:00:00Z',subject:'Français'}]:[])];
++    return json({...meta(),events:rows.filter(row=>row.start.slice(0,10)>=url.searchParams.get('from')&&row.start.slice(0,10)<=url.searchParams.get('to'))});
++  }
++  if(suffix.endsWith('/homework'))return json({...meta(),available:true,items:[{id:'work-stable',title:'Devoir ENT',details:'Consigne reçue',due:phase===1?tomorrow:day(add(2)),subject:'Mathématiques',kind:'homework',done:false},{id:'exam-stable',title:'Contrôle ENT',details:'Réviser',due:tomorrow,subject:'Français',kind:'exam',done:false}]});
++  return json({error:'Endpoint de test absent'},404);
++ });
++ const page=await context.newPage();await page.exposeFunction('__recordFixtureRPC',()=>{rpcCalls++;cleanupOrder.push('rpc');});page.setDefaultTimeout(30000);page.setDefaultNavigationTimeout(45000);
++ page.on('pageerror',error=>errors.push(error.message));
++ page.on('request',request=>{const url=new URL(request.url());if(['http:','https:'].includes(url.protocol)&&![root,'https://cdn.jsdelivr.net','https://fonts.googleapis.com','https://fonts.gstatic.com','https://repere.84.235.226.127.sslip.io'].includes(url.origin))external.push(url.origin);});
++ await page.goto(root+'/',{waitUntil:'domcontentloaded'});
++ await page.waitForFunction(()=>events.some(event=>event.uid==='manual-import'));
++ await page.getByRole('button',{name:'Réglages',exact:true}).click();
++ await page.locator('[data-act="view"][data-v="connexion-ent"]').click();
++ await page.locator('.ent-connection').getByRole('heading',{name:'Connecter mon ENT',exact:true}).waitFor();
++ assert.equal(await page.locator('.ent-powered').innerText(),'Powered by PSRL');
++ assert.equal((await page.locator('.ent-connection').innerText()).includes('Passerelle'),false);
++ assert.equal(await page.locator('.ent-connection input[type=password]').count(),0);
++ await page.locator('.ent-connection').getByRole('button',{name:'Connecter mon ENT',exact:true}).click();
++ await page.getByRole('heading',{name:'Connexion ENT de test',exact:true}).waitFor();
++ const callback=root+'/passerelle/ent/callback?'+new URLSearchParams({code:'c'.repeat(43),state:'s'.repeat(43),iss:'https://repere.84.235.226.127.sslip.io/agenda'});
++ await page.goto(callback,{waitUntil:'domcontentloaded'});
++ await page.waitForFunction(()=>managedConnection?.connectionId&&managedCourses.length===2&&!managedBusy);
++ assert.equal(await page.evaluate(()=>window.__supabaseSawQuery),'');assert.equal(new URL(page.url()).pathname,'/');assert.equal(new URL(page.url()).search,'');assert.equal(exchanged,1);console.log(JSON.stringify({stage:'callback-and-rest-loaded'}));
++ assert.equal(await page.evaluate(()=>events.find(event=>event.uid==='passerelle-course:stable').kind),'course');
++ assert.deepEqual(await page.evaluate(()=>hwItems().map(item=>item.title).sort()),['Devoir ENT','Mon devoir personnel']);
++ assert.equal(await page.evaluate(()=>evalItems()[0].title),'Contrôle ENT');
++ await page.locator('#nav [data-v=lycee]').click();await page.getByText('Réunion des élèves',{exact:true}).waitFor();await page.getByText('Actualité du lycée',{exact:true}).waitFor();
++ await page.locator('.ent-mail').first().click();await page.locator('#modal .ent-body').getByText('Contenu intégral du mail <script>alert(1)</script>',{exact:true}).waitFor();assert.equal(await page.locator('#modal script').count(),0);
++ const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Document.pdf',exact:true}).click();assert.equal((await downloadPromise).suggestedFilename(),'Document.pdf');
++ await page.locator('#modal').getByRole('button',{name:'Fermer',exact:true}).click();await page.getByRole('button',{name:'Afficher tous les mails',exact:true}).click();await page.getByRole('button',{name:'Afficher les mails précédents',exact:true}).click();await page.getByText('Mail précédent',{exact:true}).waitFor();
++ await page.getByRole('button',{name:'‹ Retour à Mon lycée',exact:true}).click();await page.getByRole('button',{name:'Lire l’actualité',exact:false}).click();await page.getByText('Tous les détails de la sortie',{exact:true}).waitFor();await page.locator('#modal').getByRole('button',{name:'Fermer',exact:true}).click();
++ mailMode='failure';await page.evaluate(()=>refreshManaged({manual:true}));assert.ok(await page.evaluate(()=>managedSchool.messages.items.length>0),'a temporary error keeps the previous mails');await page.getByText('Panne temporaire de la messagerie',{exact:true}).waitFor();
++ mailMode='unavailable';await page.evaluate(()=>refreshManaged({manual:true}));assert.equal(await page.evaluate(()=>managedSchool.messages.items.length),0);assert.equal(await page.getByRole('button',{name:'Afficher tous les mails',exact:true}).isDisabled(),true);
++ mailMode='ready';await page.evaluate(()=>refreshManaged({manual:true}));
++ await page.getByRole('button',{name:'Réglages',exact:true}).click();await page.locator('[data-act="view"][data-v="connexion-ent"]').click();
++ await page.locator('.ent-connection').getByRole('heading',{name:'Mon ENT connecté',exact:true}).waitFor();
++ await page.locator('.ent-manual>summary').click();assert.equal(await page.locator('#icsUrl').isVisible(),true);
++ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
++ fs.mkdirSync(path.join(folder,'test-results'),{recursive:true});await page.screenshot({path:path.join(folder,'test-results/lapsus-ent-mobile.png'),animations:'disabled'});
++ await page.evaluate(()=>{autoDone['passerelle-work:work-stable']=true;ctrlDone['passerelle-work:exam-stable']=true;});
++ phase=2;await page.evaluate(()=>refreshManaged({manual:true}));
++ assert.equal(await page.evaluate(()=>events.filter(event=>event.uid==='passerelle-course:stable').length),1);assert.equal(await page.evaluate(()=>events.filter(event=>event.status==='CANCELLED').length),0);
++ assert.equal(await page.evaluate(()=>events.some(event=>event.uid==='passerelle-course:removed')),false);
++ assert.equal(await page.evaluate(()=>hwItems().find(item=>item.id==='passerelle-work:work-stable').done),true);assert.equal(await page.evaluate(()=>evalItems()[0].done),true);
++ console.log(JSON.stringify({stage:'snapshots-updated'}));revision='source-b';await page.evaluate(()=>refreshManaged());assert.deepEqual(await page.evaluate(()=>managedCourses.map(event=>event.uid)),['passerelle-course:new-profile']);
++ await page.locator('.ent-connection').getByRole('button',{name:'Déconnecter',exact:true}).click();await page.locator('#modal').getByRole('button',{name:'Déconnecter',exact:true}).click();
++ await page.waitForFunction(()=>!managedConnection);assert.equal(deleted,1);console.log(JSON.stringify({stage:'disconnected-and-manual-restored'}));assert.ok(await page.evaluate(()=>events.some(event=>event.uid==='manual-import')));assert.ok(await page.evaluate(()=>hwItems().some(item=>item.id==='manual-homework')));
++ // New login or remote sign-out cannot apply another account's delayed REST response.
++ active=true;await page.evaluate(()=>refreshManaged());
++ gate=new Promise(resolve=>{releaseGate=resolve;});
++ await page.evaluate(()=>void refreshManaged());
++ for(let attempt=0;!gateEntered&&attempt<100;attempt++)await page.waitForTimeout(100);
++ assert.equal(gateEntered,true,'a delayed agenda read is in flight before logout');
++ await page.evaluate(()=>leaveApp());releaseGate();gate=null;
++ await page.locator('#authSubmit').waitFor();await page.waitForTimeout(200);
++ assert.equal(await page.evaluate(()=>managedConnection),null);assert.equal(await page.evaluate(()=>managedCourses.length),0);assert.equal(await page.locator('#main').innerText(),'');
++ await page.evaluate(async()=>{window.__fixtureUser={id:'test-b',email:'test-b@example.invalid'};user=window.__fixtureUser;await enterApp();});
++ assert.equal(await page.evaluate(()=>managedConnection),null);assert.equal(await page.evaluate(()=>events.length),0);assert.equal(await page.evaluate(()=>hwItems().length),0);
++ assert.ok(await page.evaluate(()=>localStorage.getItem('u:test-a:icsText')));
++ for(const width of [320,1440]){await page.setViewportSize({width,height:900});await page.getByRole('button',{name:'Réglages',exact:true}).click();await page.locator('[data-act="view"][data-v="connexion-ent"]').click();await page.evaluate(()=>document.documentElement.dataset.theme='dark');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
++ // Account removal must clean up remotely even on a device without a cached connection.
++ await page.evaluate(async()=>{user=window.__fixtureUser={id:'test-a',email:'test-a@example.invalid'};await enterApp();await refreshManaged();setManagedConnection({connectionId:null},true);});
++ cleanupStatus=503;await page.evaluate(()=>deleteAccountModal());
++ assert.equal(rpcCalls,0);assert.equal(await page.evaluate(()=>user?.id),'test-a');
++ await page.locator('#modal .mt').filter({hasText:/^Suppression impossible$/}).waitFor();
++ cleanupStatus=200;await page.evaluate(async()=>{window.__fixtureRPCError={message:'Suppression Supabase refusée dans le test'};await deleteAccountModal();});
++ assert.equal(active,false);assert.equal(rpcCalls,1);assert.equal(await page.evaluate(()=>user?.id),'test-a');
++ await page.locator('#modal .mt').filter({hasText:/^Suppression impossible$/}).waitFor();
++ await page.evaluate(async()=>{window.__fixtureRPCError=null;await deleteAccountModal();});
++ assert.equal(rpcCalls,2);assert.equal(await page.evaluate(()=>user),null);assert.deepEqual(cleanupOrder,['cleanup','rpc','cleanup','rpc']);
++ assert.equal(await page.evaluate(()=>localStorage.getItem('u:test-a:managedENT')),null);
++ assert.equal(await page.evaluate(()=>localStorage.getItem('u:test-a:icsText')),null);
++ await page.locator('#modal .mt').filter({hasText:/^Compte supprimé$/}).waitFor();
++ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
++ console.log(JSON.stringify({ok:true,callbackBeforeSupabase:true,noExtraPasserelleAccount:true,restCoursesHomeworkExams:true,mailAndNews:true,fullContents:true,privateAttachment:true,mailPagination:true,missingSourceDisabled:true,temporaryFailureKeepsCopy:true,stableUpdates:true,removedCourses:true,manualImportsPreserved:true,localTasksPreserved:true,sourceChangeCacheReset:true,lateResponseIsolation:true,logoutAndAccountIsolation:true,accountDeletionCleanup:true,rpcFailureVisible:true,widths:[320,390,1440],dark:true,realENTCalls:0,realEmails:0}));
++}finally{releaseGate?.();await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}
+diff --git a/tests/passerelle-frontend.test.cjs b/tests/passerelle-frontend.test.cjs
+new file mode 100644
+index 0000000..4bd85ac
+--- /dev/null
++++ b/tests/passerelle-frontend.test.cjs
+@@ -0,0 +1,77 @@
++const test=require('node:test');
++const assert=require('node:assert/strict');
++const api=require('../passerelle-ent.js');
++
++const id='ment-11111111-1111-4111-8111-111111111111';
++const info={connectionId:id,status:'ready',scopes:['courses','homework','exams'],sourceVersion:'source-version-a',lastSync:1,lastAttempt:1,stale:false};
++const row=(id,date,title='Mathématiques')=>({id,title,start:date+'T09:00:00Z',end:date+'T10:00:00Z',subject:'Mathématiques',location:'Salle A',sequence:0});
++const window={from:'2026-11-01',to:'2026-11-30'};
++const response=(value,status=200)=>({ok:status>=200&&status<300,status,json:async()=>value});
++
++test('callback is consumed before unrelated authentication and its code is removed even when invalid',()=>{
++ for(const issuer of ['https://repere.84.235.226.127.sslip.io/agenda','https://outside.invalid']){
++  let replaced=null;
++  const result=api.captureCallback({pathname:'/passerelle/ent/callback',search:'?'+new URLSearchParams({code:'c'.repeat(43),state:'s'.repeat(43),iss:issuer})},{replaceState(_data,_unused,value){replaced=value;}});
++  assert.equal(replaced,'/');
++  if(issuer.includes('outside'))assert.ok(result.error);else{assert.equal(result.code,'c'.repeat(43));assert.equal(result.state,'s'.repeat(43));}
++ }
++ let changed=false;assert.equal(api.captureCallback({pathname:'/',search:'?code=supabase-code'},{replaceState(){changed=true;}}),null);assert.equal(changed,false);
++});
++
++test('partial course replacement preserves outside dates, removes cancellation and does not classify course titles as homework',()=>{
++ const past=api.replaceCourses([],[row('past','2026-09-01')],{from:'2026-09-01',to:'2026-09-02'});
++ const near=api.replaceCourses(past,[row('same','2026-11-05','Exercices et contrôle de connaissances'),row('removed','2026-11-06')],window);
++ const far=api.replaceCourses(near,[row('far','2027-02-05')],{from:'2027-02-01',to:'2027-02-28'});
++ const moved=api.replaceCourses(far,[row('same','2026-11-08')],window);
++ assert.deepEqual(moved.map(event=>event.uid),['passerelle-course:past','passerelle-course:same','passerelle-course:far']);
++ assert.equal(moved[1].kind,'course');assert.equal(moved[1].date,'2026-11-08');assert.equal(moved[1].status,'CONFIRMED');
++ const cancelled=api.replaceCourses(moved,[],window);assert.deepEqual(cancelled.map(event=>event.uid),['passerelle-course:past','passerelle-course:far']);
++ assert.ok(!cancelled.some(event=>event.status==='CANCELLED'));
++});
++
++test('work identities survive date changes and malformed snapshots never mutate the last valid arrays',()=>{
++ const first=api.replaceWork([],[{id:'homework',title:'Exercice',due:'2026-11-05',kind:'homework',details:'Consigne',subject:'Mathématiques'}],window);
++ const moved=api.replaceWork(first,[{id:'homework',title:'Exercice',due:'2026-11-09',kind:'homework'}],window);
++ assert.equal(first[0].id,moved[0].id);assert.equal(moved[0].type,'hw');assert.equal(moved[0].due,'2026-11-09');
++ const before=JSON.stringify(first);assert.throws(()=>api.replaceWork(first,[{id:'bad',due:'2026-02-31',kind:'exam'}],window));assert.equal(JSON.stringify(first),before);
++ assert.throws(()=>api.replaceCourses([], [row('outside','2027-01-01')],window));
++ assert.throws(()=>api.replaceCourses([], [row('bad','invalid')],window));
++ const exam=api.replaceWork([],[{id:'exam',title:'Évaluation',due:'2026-11-05',kind:'exam'}],window);assert.equal(exam[0].type,'eval');
++});
++
++test('REST helper sends only the Lapsus session to same-origin functions and validates connection ownership metadata',async()=>{
++ const calls=[];const client=api.createClient({getAccessToken:async()=>'synthetic-lapsus-token',fetcher:async(url,options)=>{calls.push({url,options});return response({...info,events:[]});}});
++ const result=await client.agenda(id,window);assert.equal(result.connectionId,id);assert.deepEqual(result.events,[]);assert.equal(calls[0].url,'/api/passerelle/connections/'+id+'/agenda?from=2026-11-01&to=2026-11-30');assert.equal(calls[0].options.headers.Authorization,'Bearer synthetic-lapsus-token');assert.equal(calls[0].options.credentials,'same-origin');assert.equal(calls[0].options.cache,'no-store');
++ assert.throws(()=>api.metadata({...info,scopes:['admin']}));assert.throws(()=>api.metadata({...info,connectionId:'other'}));
++ assert.deepEqual(api.metadata({connectionId:null}),{connectionId:null});assert.equal(result.sourceVersion,'source-version-a');
++ await assert.rejects(api.createClient({getAccessToken:async()=>null}).current(),/Reconnecte-toi/);
++});
++
++test('connection navigation allows only the expected Passerelle launch and no secret is persisted by the helper',async()=>{
++ for(const launchURL of ['https://outside.invalid/ent-connect?session='+'a'.repeat(43),'https://repere.84.235.226.127.sslip.io/agenda/ent-connect?session='+'a'.repeat(43)+'&next=other','https://repere.84.235.226.127.sslip.io/agenda/ent-connect?session='+'a'.repeat(43)+'#fragment']){
++  const client=api.createClient({getAccessToken:async()=>'synthetic',fetcher:async()=>response({launchURL})});await assert.rejects(client.connect(),/invalide/);
++ }
++ const launch='https://repere.84.235.226.127.sslip.io/agenda/ent-connect?session='+'a'.repeat(43);
++ const client=api.createClient({getAccessToken:async()=>'synthetic',fetcher:async()=>response({launchURL:launch})});assert.equal(await client.connect(),launch);
++ const unavailable=api.createClient({getAccessToken:async()=>'synthetic',fetcher:async()=>response({error:'Connexion non activée'},503)});await assert.rejects(unavailable.current(),error=>error.status===503&&error.message==='Connexion non activée');
++});
++
++test('account cleanup works without a cached connection and refuses to ignore outages or a known connected profile',async()=>{
++ const calls=[];
++ const client=api.createClient({getAccessToken:async()=>'synthetic-lapsus-token',fetcher:async(url,options)=>{calls.push({url,options});return response({ok:true});}});
++ await client.disconnectCurrent();assert.equal(calls[0].url,'/api/passerelle/connection');assert.equal(calls[0].options.method,'DELETE');
++ for(const [status,code,knownConnection,canSkip]of [[503,'ENT_CONNECTOR_UNCONFIGURED',false,true],[503,'ENT_CONNECTOR_UNCONFIGURED',true,false],[503,undefined,false,false],[401,undefined,false,false],[502,undefined,false,false]]){
++  const unavailable=api.createClient({getAccessToken:async()=>'synthetic',fetcher:async()=>response({error:'Nettoyage impossible',code},status)});
++  if(canSkip)await unavailable.disconnectCurrent({knownConnection});
++  else await assert.rejects(unavailable.disconnectCurrent({knownConnection}),error=>error.status===status);
++ }
++});
++
++
++test('mail and news reads validate scoped content and never put the server key or an external identity in the browser request',async()=>{
++ const calls=[],extended={...info,scopes:['courses','messages','news']},ref='a'.repeat(64);
++ const client=api.createClient({getAccessToken:async()=> 'synthetic-session',fetcher:async(url,options)=>{calls.push({url,options});return response({...extended,section:'messages',available:true,items:[{ref,title:'Mail du lycée'}]});}});
++ assert.equal((await client.school(id,'messages')).items[0].title,'Mail du lycée');assert.ok(calls[0].url.endsWith('/school/messages'));assert.equal(calls[0].options.headers.Authorization,'Bearer synthetic-session');assert.equal(calls[0].options.headers['X-Lapsus-User'],undefined);
++ await assert.rejects(()=>client.school(id,'grades'));await assert.rejects(()=>client.detail(id,'not-a-reference'));await assert.rejects(()=>client.file(id,'https://outside.invalid/file'));
++ assert.deepEqual(api.metadata(extended).scopes,extended.scopes);
++});

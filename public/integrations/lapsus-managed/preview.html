@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#fbfcf8">
+  <title>Aperçu du connecteur ENT · Lapsus</title>
+  <link rel="icon" type="image/svg+xml" href="../../integrations/lapsus-managed/assets/lapsus-logo.svg">
+  <link rel="preload" href="../../fonts/manrope-variable.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="../../fonts.css?v=4.19.2">
+  <link rel="stylesheet" href="../../managed-ent.css?v=4.20.0">
+  <script src="./preview.js?v=4.20.0" defer></script>
+</head>
+<body class="managed-ent-page">
+  <header class="managed-ent-top">
+    <a class="managed-ent-brand" href="https://mon-ent.pages.dev/" aria-label="Accueil Lapsus"><img src="../../integrations/lapsus-managed/assets/lapsus-logo.svg" width="32" height="32" alt=""><span>Lapsus</span></a>
+    <span class="managed-ent-top-label">Connexion ENT</span>
+  </header>
+  <main class="managed-ent-main">
+    <section class="managed-ent-card" aria-labelledby="managed-title">
+      <div class="managed-ent-intro"><h1 id="managed-title">Connecter mon ENT</h1><p>Cours, devoirs, mails et actualités, directement dans Lapsus.</p></div>
+      <ul id="managed-data-types" class="managed-data-types" aria-label="Informations demandées par Lapsus"></ul>
+      <ol class="managed-ent-steps" aria-label="Étapes de connexion">
+        <li data-step="school" aria-current="step"><span><svg class="managed-ent-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="../../integrations/lapsus-managed/assets/lapsus-icons.svg#school"></use></svg></span> Lycée</li>
+        <li data-step="login"><span><svg class="managed-ent-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="../../integrations/lapsus-managed/assets/lapsus-icons.svg#key"></use></svg></span> Connexion</li>
+        <li data-step="syncing"><span><svg class="managed-ent-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="../../integrations/lapsus-managed/assets/lapsus-icons.svg#cal"></use></svg></span> Agenda</li>
+      </ol>
+      <p id="managed-error" class="managed-ent-error" role="alert" hidden></p>
+      <div id="managed-ent-content" aria-live="polite" aria-busy="false"><h2>Quel est votre lycée ?</h2><p>Recherchez votre établissement compatible avec l’ENT Auvergne-Rhône-Alpes.</p><div id="managed-school-form"><label for="managed-school-query">Nom du lycée ou ville<input id="managed-school-query" type="search" maxlength="100" placeholder="Nom du lycée ou ville" autocomplete="off"></label><button id="managed-preview-search" class="button" type="button">Rechercher</button></div><p id="managed-preview-status" role="status" hidden></p></div>
+      <footer class="managed-ent-foot"><p id="managed-ent-scope">Les informations suivantes seront synchronisées avec votre compte Lapsus : cours et horaires, devoirs, contrôles, mails de l’ENT et actualités du lycée.</p><button id="managed-ent-cancel" class="text-button" type="button">Annuler la connexion</button></footer>
+    </section>
+    <p class="managed-ent-powered"><a href="../../" target="_blank" rel="noopener noreferrer" aria-label="Powered by PSRL — connexion assurée par Passerelle">Powered by <strong>PSRL</strong></a></p>
+  <p class="managed-ent-preview-note">Aperçu visuel · aucune connexion ENT n’est lancée ici.</p></main>
+</body>
+</html>

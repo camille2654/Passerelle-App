@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import {createApp} from '../src/server.js';
 import {random, digest} from '../src/store.js';
+import {skolengoClient} from '../src/skolengo.js';
+import {portalForURL} from '../src/ent-providers.js';
 import {subjectFor} from '../src/subjects.js';
 import {schoolClient} from './school-fixture.js';
 
@@ -23,7 +25,7 @@ export async function hubFixture(options = {}) {
   const controls = {outage: false, rotations: 0, snapshot: pronoteSnapshot(), failAfterRotation: false};
   const baseURL = options.baseURL || 'http://127.0.0.1/agenda';
   const source = createApp({dataDir: dir, baseURL, bootstrap: false, clock: () => now,
-    schoolOptions: {clientFactory: async (_store, user) => {const c = schoolClient(user); for (const method of ['getEvaluationSettings', 'getPeriodicReportsFiles', 'getAbsenceFiles']) c[method] = async () => {throw Object.assign(new Error('not configured'), {name: 'NO_SCHOOLING_SOLUTION_CONFIGURED'});}; return c;}},
+    schoolOptions: {clientFactory: async (_store, user) => {if(user.skolengo&&_store.open(user.skolengo).provider==='ent-pronote')return skolengoClient(_store,user);const c = schoolClient(user); for (const method of ['getEvaluationSettings', 'getPeriodicReportsFiles', 'getAbsenceFiles']) c[method] = async () => {throw Object.assign(new Error('not configured'), {name: 'NO_SCHOOLING_SOLUTION_CONFIGURED'});}; return c;}},
     pronoteOptions: {worker: async (_payload, save) => {controls.rotations++; save({...credentialFixture, password: 'private-mobile-token-' + controls.rotations}); if (controls.failAfterRotation) throw new Error('SOURCE_UNAVAILABLE'); if (controls.outage) throw new Error('AUTH_EXPIRED'); return structuredClone(controls.snapshot);}}
   });
   const subject = subjectFor({label: 'Mathématiques'});
@@ -31,7 +33,7 @@ export async function hubFixture(options = {}) {
   const cookies = {};
   for (const id of ['a', 'b', 'admin']) {const token = random(); cookies[id] = 'agenda_session=' + token; source.store.state.sessions.push({hash: digest(token), userId: id, expires: Date.now() + 3600000});}
   source.store.save(); const server = source.app.listen(options.port || 0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
-  return {...source, dir, controls, cookies, server, setNow: value => {now = value;}, now: () => now, async request(route, body, who = 'a', origin = new URL(baseURL).origin) {
+  return {...source, dir, controls, cookies, server, async captureENT(who='a',overrides={},options={}){try{return {status:200,body:await source.pronote.connectENT(source.store.user(who),{url:qrFixture.url,html:'<html><body onload="Start({a:3,e:\'synthetic-ent-user\',f:\'synthetic-ent-secret\',h:1})"></body></html>',cookies:[],...overrides},portalForURL('https://ent.monlycee.net/'),options)}}catch(error){return {status:error.status||500,body:{error:error.message}}}}, setNow: value => {now = value;}, now: () => now, async request(route, body, who = 'a', origin = new URL(baseURL).origin) {
     const response = await fetch('http://127.0.0.1:' + server.address().port + '/agenda/api/' + route, {headers: {cookie: cookies[who] || '', origin, ...(body !== undefined ? {'Content-Type': 'application/json'} : {})}, ...(body !== undefined ? {method: 'POST', body: JSON.stringify(body)} : {})});
     return {status: response.status, body: await response.json()};
   }, async close() {await source.browsers.close(); await new Promise(resolve => server.close(resolve)); fs.rmSync(dir, {recursive: true, force: true});}};

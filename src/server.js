@@ -1,7 +1,15 @@
+import {publicProviders,publicProvider} from './ent-providers.js';
+import {startEntPronote,resolveEntConnection} from './ent-pronote-browser.js';
+import {isEntPronote} from './ent-profile.js';
+import {installSystemStatusRoutes} from './system-status.js';
 import {addManualWork} from './manual-work.js';
 import {installIncomingRoutes} from './incoming.js';
 import {installResourceRoutes} from './work-resources.js';
 import {installTravelRoutes} from './travel.js';
+import {installSmartTravelRoutes} from './smart-travel.js';
+import {installPartnerOAuthRoutes} from './partner-oauth.js';
+import {installManagedENTRoutes} from './managed-ent.js';
+import {syncPolicy,syncInterval} from './sync-policy.js';
 import {installPersonalCalendarRoutes} from './personal-calendar.js';
 import {installPasskeyRoutes} from './passkeys.js';
 import {installPersonalMailRoutes} from './personal-mail.js';
@@ -9,6 +17,7 @@ import {installEventSuggestionRoutes} from './event-suggestions.js';
 import express from 'express';
 import {homeContext} from './home.js';
 import {initializeOnboarding,publicOnboarding,installOnboardingRoutes} from './onboarding.js';
+import {publicRelease,installReleaseRoutes} from './releases.js';
 import {installCaptureRoutes} from './capture.js';
 import {installFavoriteRoutes} from './favorites.js';
 import {installPushRoutes,detachPushSession} from './push.js';
@@ -16,6 +25,7 @@ import {installAdminControl} from './admin-control.js';
 import {listenAdminSocket} from './admin-socket.js';
 import {accountActive,maintenanceState,publicOperations} from './operational-state.js';
 import {installHubRoutes} from './hub.js';
+import {installDiscoveryRoutes} from './discovery.js';
 import {installPronoteRoutes} from './pronote.js';
 import helmet from 'helmet';
 import fs from 'node:fs';
@@ -38,12 +48,13 @@ import { installMenuRoutes } from './menu.js';
 import {installPersonalRoutes,personalSettings} from './personal.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const VERSION = '4.15.2';
-export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(root, 'data'), baseURL = process.env.AGENDA_BASE_URL || 'http://127.0.0.1:8020/agenda', bootstrap = true, clock = () => Date.now(), syncOptions = {}, mailOptions = {}, auditOptions = {}, plannerOptions = {}, schoolOptions = {}, menuOptions = {}, pronoteOptions = {}, controlOptions = {}, pushOptions = {}, captureOptions = {}, favoriteOptions = {}, personalMailOptions = {}, passkeyOptions = {}, personalCalendarOptions = {}, travelOptions = {}, resourceOptions = {}, incomingOptions = {} } = {}) {
+const VERSION = '4.26.4';
+export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(root, 'data'), baseURL = process.env.AGENDA_BASE_URL || 'http://127.0.0.1:8020/agenda', bootstrap = true, clock = () => Date.now(), syncOptions = {}, mailOptions = {}, auditOptions = {}, plannerOptions = {}, schoolOptions = {}, menuOptions = {}, pronoteOptions = {}, controlOptions = {}, pushOptions = {}, captureOptions = {}, favoriteOptions = {}, personalMailOptions = {}, passkeyOptions = {}, personalCalendarOptions = {}, travelOptions = {}, smartTravelOptions = {}, managedOptions = {}, resourceOptions = {}, incomingOptions = {} } = {}) {
   baseURL = baseURL.replace(/\/$/, '');
   const parsed = new URL(baseURL), basePath = parsed.pathname.replace(/\/$/, '');
   const secure = parsed.protocol === 'https:';
   const store = new Store(dataDir), audit = new AuditLog(store, { clock, ...auditOptions }), engine = new SyncEngine(store, { clock, audit, ...syncOptions }), browsers = new LoginBrowsers(store);
+  browsers.onDiagnostic=(user,meta)=>audit.record('pronote.login.step',{source:'security',userId:user.id,meta:{errorCode:meta.code,method:meta.method,...(Number.isInteger(meta.count)?{count:meta.count}:{}),...(['policy','navigation-fetch','navigation-response','bootstrap','handoff','asset'].includes(meta.stage)?{mode:meta.stage}:{})}});
   upgradeCalendarFeeds(store,clock());
   const mailer = new MailEngine(store, baseURL, { clock, audit, syncUser: id => engine.run(id), ...mailOptions });
   const app = express(), router = express.Router(), attempts = new Map(), schools = new Map();
@@ -53,17 +64,18 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     res.on('finish', () => {
       const route = typeof req.route?.path === 'string' ? req.route.path : '/unknown';
       if (req.method === 'GET' && res.statusCode < 400 && ['/api/admin/users', '/api/admin/overview', '/api/admin/logs', '/api/admin/mail'].includes(route)) return;
-      if (res.statusCode < 400 && (['/health', '/api/status', '/api/skolengo/frame', '/api/skolengo/status'].includes(route) || (!route.startsWith('/api/') && !route.startsWith('/calendars/')))) return;
+      if (res.statusCode < 400 && (['/health', '/api/status', '/api/system-status', '/api/skolengo/frame', '/api/skolengo/status'].includes(route) || (!route.startsWith('/api/') && !route.startsWith('/calendars/')))) return;
       const feed = route === '/calendars/:token.ics';
       audit.record(feed ? 'feed.read' : 'http.request', { source: feed ? 'feed' : res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429 ? 'security' : route.startsWith('/api/admin/') ? 'admin' : 'http', level: res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info', actorId: req.user?.id, userId: req.auditUserId || req.user?.id, meta: { requestId: req.requestId, method: req.method, route, status: res.statusCode, durationMs: Math.round(performance.now() - started), peer: audit.peer(req.ip || 'unknown') } });
     });
     next();
   });
-  app.use(helmet({ contentSecurityPolicy: { directives: { upgradeInsecureRequests: secure ? [] : null, defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'blob:', 'data:'], connectSrc: ["'self'"], fontSrc: ["'self'"], objectSrc: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"], frameAncestors: ["'none'"] } }, hsts: secure ? undefined : false }));
-  app.use(express.json({ limit: '128kb' }));
+  app.use(helmet({ contentSecurityPolicy: { directives: { upgradeInsecureRequests: secure ? [] : null, defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'blob:', 'data:'], connectSrc: ["'self'"], fontSrc: ["'self'", 'blob:', 'data:'], workerSrc:["'self'"], objectSrc: ["'none'"], baseUri: ["'self'"], formAction: ["'self'"], frameAncestors: ["'none'"] } }, hsts: secure ? undefined : false }));
+  const json=express.json({limit:'128kb'});
+  app.use((req,res,next)=>req.method==='POST'&&req.path===basePath+'/share'?next():json(req,res,next));
   app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   router.use((req, res, next) => {
-    if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method) && !(req.method==='POST'&&req.path==='/share') && req.get('origin') !== parsed.origin) return res.status(403).json({ error: 'Origine de la requête refusée.' });
+    if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(req.method) && !req.path.startsWith('/api/managed-ent/') && !(req.method==='POST'&&['/share','/oauth/token'].includes(req.path)) && req.get('origin') !== parsed.origin) return res.status(403).json({ error: 'Origine de la requête refusée.' });
     const cookies = (req.headers.cookie || '').split(';').map(c => c.trim().split('='));
     const token = cookies.find(c => c[0] === 'agenda_session')?.[1];
     const session = token && store.state.sessions.find(s => s.hash === digest(token) && s.expires > Date.now());
@@ -75,7 +87,7 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
   });
   const auth = (req, res, next) => req.user ? next() : res.status(401).json({ error: 'Connectez-vous pour continuer.' });
   const admin = (req, res, next) => req.user?.admin ? next() : res.status(403).json({ error: 'Accès administrateur requis.' });
-  let school, pronote, eventSuggestions, personalMail, passkeys, resources, cloud, incoming, personalCalendars, travel;
+  let school, pronote, eventSuggestions, personalMail, passkeys, resources, cloud, incoming, personalCalendars, travel, smartTravel;
   const idle = (req, res, next) => engine.running.has(req.user.id) || school?.busy(req.user.id) || pronote?.running.has(req.user.id) ? res.status(409).json({ error: 'Attendez la fin de la consultation de votre établissement.' }) : next();
   function rateLimit(req, key, limit, period) {
     const now = Date.now(), id = key + ':' + req.ip;
@@ -96,7 +108,7 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     if (!u) return null;
     const resourceRows=resources?.list(u).items||[];
     const keys = ['id', 'name', 'login', 'admin', 'schoolName', 'students', 'studentId', 'enabled', 'lastSync', 'lastAttempt', 'lastError', 'skolengoError', 'history', 'events', 'total', 'calendarWindow', 'homeworkWarning', 'homeworkAvailable', 'workLastSync', 'changes', 'reminderMinutes', 'friendshipVersion','personalVersion'];
-    return { ...Object.fromEntries(keys.map(k => [k, u[k]])), personalMailVersion:u.personalMailVersion||0,eventSuggestions:eventSuggestions?.summary(u),onboarding:publicOnboarding(u),home:homeContext(u,clock()),personalSettings:personalSettings(u), pronote: pronote?.publicSettings(u), support: u.admin ? {pending: (store.state.supportTickets || []).filter(t => t.status !== 'resolved').length} : {unread: (store.state.supportTickets || []).filter(t => t.userId === u.id && t.replies.some(r => r.at > (u.supportReadAt || 0))).length}, skolengoConnected: !!u.skolengo, syncing: engine.running.has(u.id), feedURL: u.feedKey ? baseURL + "/calendars/" + store.open(u.feedKey) + ".ics" : null, subjects: subjectList(u), work: userWork(u).filter(w => w.due >= shiftDate(parisDate(new Date(clock())), -14)).slice(0, 200).map(w=>({...w,resources:resourceRows.filter(row=>row.workId===w.id)})), email: mailer.publicSettings(u), today: {date:parisDate(new Date(clock())),courses:Object.values(u.calendarEvents||{}).filter(event=>event.date===parisDate(new Date(clock()))).sort((a,b)=>a.start.localeCompare(b.start))}, brief: buildBrief(u, new Date(clock())) };
+    return { ...Object.fromEntries(keys.map(k => [k, u[k]])), entProvider:u.skolengo?(isEntPronote(store,u)?{id:store.open(u.skolengo).school.emsCode,label:'ENT → PRONOTE',family:'ent-pronote'}:publicProvider(store.open(u.skolengo).school)):null,syncPolicy:syncPolicy(u,clock()),release:publicRelease(u),smartTravel:smartTravel?.summary(u,travel?.settings(u).enabled),personalMailVersion:u.personalMailVersion||0,eventSuggestions:eventSuggestions?.summary(u),onboarding:publicOnboarding(u),home:homeContext(u,clock()),personalSettings:personalSettings(u), pronote: pronote?.publicSettings(u), support: u.admin ? {pending: (store.state.supportTickets || []).filter(t => t.status !== 'resolved').length} : {unread: (store.state.supportTickets || []).filter(t => t.userId === u.id && t.replies.some(r => r.at > (u.supportReadAt || 0))).length}, skolengoConnected: !!u.skolengo, syncing: engine.running.has(u.id), feedURL: u.feedKey ? baseURL + "/calendars/" + store.open(u.feedKey) + ".ics" : null, subjects: subjectList(u), work: userWork(u).filter(w => w.due >= shiftDate(parisDate(new Date(clock())), -14)).slice(0, 200).map(w=>({...w,resources:resourceRows.filter(row=>row.workId===w.id)})), email: mailer.publicSettings(u), today: {date:parisDate(new Date(clock())),courses:Object.values(u.calendarEvents||{}).filter(event=>event.date===parisDate(new Date(clock()))).sort((a,b)=>a.start.localeCompare(b.start))}, brief: buildBrief(u, new Date(clock())) };
   }
   function addInvite(admin = false) {
     const token = random();
@@ -107,7 +119,7 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     fs.writeFileSync(path.join(dataDir, 'admin-invitation.txt'), addInvite(true) + '\n', { mode: 0o600 });
   }
   const registrationOpen = () => store.state.settings.publicRegistration !== false && !maintenanceState(store.state.settings,clock()).enabled;
-  router.get('/api/status', (req, res) => res.json({ user: safeUser(req.user), baseURL, interval: INTERVAL, version: VERSION, schoolYear: dateWindow(new Date(clock())), palette: PALETTE, emojis: EMOJIS, mailReady: mailer.ready, registrationOpen: registrationOpen(), billingEnabled: false, operations:publicOperations(store.state.settings,clock()),adminSession:req.user?.admin?{elevatedUntil:req.session.adminElevatedUntil||0,version:store.state.settings.adminVersion||0}:null }));
+  router.get('/api/status', (req, res) => res.json({ user: safeUser(req.user), baseURL, interval: req.user?syncInterval(req.user,clock()):INTERVAL, version: VERSION, schoolYear: dateWindow(new Date(clock())), palette: PALETTE, emojis: EMOJIS, mailReady: mailer.ready, registrationOpen: registrationOpen(), billingEnabled: false, operations:publicOperations(store.state.settings,clock()),adminSession:req.user?.admin?{elevatedUntil:req.session.adminElevatedUntil||0,version:store.state.settings.adminVersion||0}:null }));
   router.post('/api/invitation/check', (req, res) => {
     rateLimit(req, 'invite', 30, 60000);
     const token = String(req.body.token || '');
@@ -193,13 +205,16 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     audit.record('admin.exported', { source: 'admin', actorId: req.user.id, meta: { count: rows.length } });
     res.set({ 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Content-Disposition': 'attachment; filename="passerelle-journal.jsonl"' }).send(rows.map(row => JSON.stringify(row)).join('\n') + '\n');
   });
+  router.get('/api/ent/providers',auth,(_req,res)=>res.json({providers:publicProviders(),coverage:'skolengo-national-and-ent-pronote',pronoteHostedOnly:true}));
   router.get('/api/skolengo/schools', auth, async (req, res) => {
     rateLimit(req, 'school-search', 25, 60000);
     const q = String(req.query.q || '').trim();
     if (q.length < 3 || q.length > 100) throw new PublicError('Saisissez au moins 3 caractères pour rechercher un établissement.');
-    const results = await searchSchools(q);
+    const provider=String(req.query.provider||'');
+    if(provider&&!publicProviders().some(p=>p.id===provider&&p.family==='skolengo'))throw new PublicError('Choisissez un ENT proposé.');
+    const results = await searchSchools(q,provider);
     for (const s of results) schools.set(s.id, { school: s, expires: Date.now() + 15 * 60000 });
-    res.json({ schools: results.map(s => ({ id: s.id, name: s.name, city: s.city, zipCode: s.zipCode })) });
+    res.json({ schools: results.map(s => ({ id: s.id, name: s.name, city: s.city, zipCode: s.zipCode,provider:publicProvider(s) })) });
   });
   router.post('/api/skolengo/start', auth, idle, async (req, res) => {
     rateLimit(req, 'school-login', 8, 60000);
@@ -208,6 +223,25 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     store.update(req.user.id, { enabled: false });
     res.json(await browsers.start(req.user, item.school));
   });
+  async function startWebENT(req, res, complement=false) {
+    rateLimit(req,'ent-web-login:'+req.user.id,6,15*60000);
+    if(engine.running.has(req.user.id)||pronote.running.has(req.user.id))throw new PublicError('Attendez la fin de la synchronisation avant de vous connecter.',409);
+    if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))throw new PublicError('Rechargez Passerelle puis utilisez son formulaire de connexion ENT.');
+    if(req.body.accountPin!==undefined&&(typeof req.body.accountPin!=='string'||req.body.accountPin.length>128))throw new PublicError('Le code de sécurité PRONOTE est invalide.');
+    const accountPin=req.body.accountPin||'';
+    const config=req.user.skolengo?store.open(req.user.skolengo):null;
+    const {portal:selected,entryURL}=resolveEntConnection(req.body.portalURL,config?.school);
+    const portalURL=selected.url;
+    const primary=!complement||!req.user.skolengo||isEntPronote(store,req.user);
+    res.json(await startEntPronote(browsers,req.user,portalURL,{preferred:selected.provider.id,entryURL,onCapture:async(capture,portal)=>{
+      const isCurrent=()=>browsers.items.get(req.user.id)?.context===context&&store.user(req.user.id)===req.user&&accountActive(req.user)&&store.state.sessions.some(s=>s.hash===req.session.hash&&s.expires>Date.now());
+      const context=browsers.items.get(req.user.id)?.context;
+      if(!isCurrent())throw new PublicError('Cette connexion a expiré.',409);
+      await pronote.connectENT(req.user,capture,portal,{primary,isCurrent,accountPin});
+    }}));
+  }
+  router.post('/api/ent/start',auth,idle,(req,res)=>startWebENT(req,res));
+  router.post('/api/pronote/ent/start',auth,idle,(req,res)=>startWebENT(req,res,true));
   router.get('/api/skolengo/status', auth, (req, res) => res.json(browsers.status(req.user.id)));
   router.get('/api/skolengo/frame', auth, async (req, res) => {
     const frame = await browsers.frame(req.user.id);
@@ -228,7 +262,7 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
   });
   router.post('/api/sync', auth, idle, async (req, res) => res.json(await engine.run(req.user.id)));
   router.post('/api/feed/create', auth, idle, async (req, res) => {
-    if (!req.user.skolengo || req.user.skolengoError) throw new PublicError('Connectez Skolengo avant de créer votre lien ICS.', 409);
+    if (!req.user.skolengo || req.user.skolengoError) throw new PublicError('Connectez votre ENT avant de créer votre lien ICS.', 409);
     await engine.run(req.user.id);
     if (!req.user.feedKey) issueFeed(req.user);
     store.update(req.user.id, { enabled: true });
@@ -248,7 +282,7 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
   });
   router.post('/api/sync/toggle', auth, idle, async (req, res) => {
     const enabled = req.body.enabled === true;
-    if (enabled && (!req.user.skolengo || req.user.skolengoError || !req.user.feedKey)) throw new PublicError('Connectez Skolengo et créez votre lien ICS avant d’activer les mises à jour.', 409);
+    if (enabled && (!req.user.skolengo || req.user.skolengoError || !req.user.feedKey)) throw new PublicError('Connectez votre ENT et créez votre lien ICS avant d’activer les mises à jour.', 409);
     store.update(req.user.id, { enabled });
     if (enabled) return res.json({ enabled, result: await engine.run(req.user.id) });
     res.json({ enabled });
@@ -257,10 +291,10 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     await browsers.stop(req.user.id);
     if (req.user.skolengo) {
       const config = store.open(req.user.skolengo);
-      try { const client = await Skolengo.getOIDClient(config.school); await client.revoke(config.tokenSet.refresh_token); }
+      try { if(config.provider!=='ent-pronote'){const client = await Skolengo.getOIDClient(config.school); await client.revoke(config.tokenSet.refresh_token);} }
       catch { throw new PublicError('L’ENT n’a pas confirmé la révocation. Réessayez dans un instant.', 502); }
     }
-    store.update(req.user.id, { ...clearFeed, skolengo: null, schoolName: null, students: [], studentId: null, skolengoError: null, enabled: false, lastError: null });
+    store.update(req.user.id, { ...clearFeed,...(isEntPronote(store,req.user)?{pronote:null,pronoteConnectionId:null,pronoteBinding:null,pronoteSnapshot:null,pronoteAssignments:[],pronoteError:null}:{}),pendingPronote:null,pendingPronoteId:null,pendingPronoteSnapshot:null,pendingEntPrimary:null,entConnectionKind:null,skolengoConnectionId:null,skolengo: null, schoolName: null, students: [], studentId: null, skolengoError: null, enabled: false, lastError: null });
     res.json({ ok: true });
   });
   router.get('/api/brief', auth, (req, res) => res.json({ brief: buildBrief(req.user, new Date(clock())) }));
@@ -286,7 +320,7 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     if (typeof req.body.done === 'boolean') { values.done = req.body.done; values.doneAt = req.body.done ? (item.done && req.user.workOverrides?.[item.id]?.doneAt || clock()) : null; }
     if (['exam', 'homework'].includes(req.body.kind)) values.kind = req.body.kind;
     if (!Object.keys(values).length) throw new PublicError('Modification invalide.');
-    store.update(req.user.id, { insightsSince: req.user.insightsSince || clock(), workOverrides: { ...(req.user.workOverrides || {}), [item.id]: { ...(req.user.workOverrides?.[item.id] || {}), ...values } } });
+    store.update(req.user.id, { personalVersion: clock(), insightsSince: req.user.insightsSince || clock(), workOverrides: { ...(req.user.workOverrides || {}), [item.id]: { ...(req.user.workOverrides?.[item.id] || {}), ...values } } });
     rebuildCalendar(store, req.user.id); res.json({ ok: true });
   });
   router.post('/api/work/:id/remove', auth, idle, (req, res) => {
@@ -347,24 +381,32 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     res.send(content);
   });
   router.get('/health', (req, res) => res.json({ ok: true }));
+  const partners=installPartnerOAuthRoutes(router,{store,auth,admin,rateLimit,baseURL,clock,audit});
+  const managedENT=installManagedENTRoutes(router,{store,browsers,auth,admin,rateLimit,baseURL,clock,audit,...managedOptions});
+  router.get('/ent-connect/',(_req,res)=>res.type('html').send(fs.readFileSync(path.join(root,'public/managed-ent.html'),'utf8')));
   personalCalendars=installPersonalCalendarRoutes(router,{store,auth,rateLimit,clock,audit,...personalCalendarOptions});
   travel=installTravelRoutes(router,{store,auth,admin,rateLimit,clock,audit,...travelOptions});
+  smartTravel=installSmartTravelRoutes(router,{store,auth,admin,rateLimit,clock,audit,...smartTravelOptions});
   installPlannerRoutes(router, { auth, store, rateLimit, baseURL, audit, clock, personalCalendars, ...plannerOptions });
   passkeys=installPasskeyRoutes(router,{store,auth,rateLimit,baseURL,clock,audit,login,...passkeyOptions});
   installOnboardingRoutes(router,{auth,store,rateLimit,clock});
+  installReleaseRoutes(router,{auth,store,rateLimit,clock});
   installPersonalRoutes(router,{auth,store,rateLimit,audit,clock});
   pronote = installPronoteRoutes(router, {auth, store, audit, clock, rateLimit, ...pronoteOptions});
   school = installSchoolRoutes(router, { auth, store, rateLimit, audit, clock, complement: pronote, ...(syncOptions.clientFactory ? { clientFactory: syncOptions.clientFactory } : {}), ...schoolOptions });
   personalMail=installPersonalMailRoutes(router,{store,auth,admin,rateLimit,baseURL,clock,audit,onDisconnect:(user,connection)=>eventSuggestions?.purgePersonal(user,connection),...personalMailOptions});
   eventSuggestions=installEventSuggestionRoutes(router,{store,school,auth,rateLimit,clock,audit,personalMail,sourceBusy:id=>engine.running.has(id)||school.busy(id)});
-  installHubRoutes(router, {auth, admin, store, school, rateLimit, audit, clock, version: VERSION});
   const menu = installMenuRoutes(router, { auth, school, rateLimit, clock, ...menuOptions });
   const capture=installCaptureRoutes(router,{store,auth,rateLimit,clock,audit,...captureOptions});
   const favorites=installFavoriteRoutes(router,{store,school,auth,rateLimit,clock,audit,...favoriteOptions});
   ({resources,cloud}=installResourceRoutes(router,{store,favorites,personalMail,auth,rateLimit,clock,audit,baseURL,incoming:()=>incoming,...resourceOptions}));
+  const discovery=installDiscoveryRoutes(router,{auth,store,favorites,resources,rateLimit,clock});
+  installHubRoutes(router,{auth,admin,store,school,rateLimit,audit,clock,version:VERSION,discovery});
   incoming=installIncomingRoutes(router,{store,favorites,resources,auth,rateLimit,baseURL,clock,audit,...incomingOptions});
   const push=installPushRoutes(router,{store,auth,rateLimit,baseURL,audit,clock,...pushOptions});
   const control=installAdminControl(router,{auth,admin,store,engine,mailer,browsers,school,menu,pronote,audit,baseURL,rateLimit,clock,version:VERSION,...controlOptions});
+  const systemStatus=installSystemStatusRoutes(router,{store,mailer,push,clock,version:VERSION,rateLimit});
+  router.get('/status',(req,res,next)=>req.path.endsWith('/')?next():res.redirect(308,basePath+'/status/'));
   // Installation metadata must point at this app, even on a shared origin.
   const documentBase = parsed.origin + basePath + '/';
   const indexHTML = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8').replace(/(<link\b[^>]*\brel="(?:manifest|apple-touch-icon|icon)"[^>]*\bhref=")\.\/([^"]+)(")/g,
@@ -390,27 +432,30 @@ export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(r
     const message = error instanceof PublicError || error instanceof MailError ? error.message : known[error.message] || (error.type === 'entity.parse.failed' ? 'La requête est invalide.' : 'Cette opération a échoué. Réessayez dans un instant.');
     res.status(error instanceof PublicError || error instanceof MailError ? error.status : 400).json({ error: message, ...(error instanceof PublicError && /^[A-Z_]{1,50}$/.test(error.code||'')?{code:error.code}:{}) });
   });
-  return { app, store, engine, browsers, mailer, audit, school, menu, pronote, capture, favorites, push, eventSuggestions, personalMail, passkeys, resources, cloud, incoming, personalCalendars, travel, control, baseURL };
+  return { app, store, engine, browsers, mailer, audit, school, menu, pronote, capture, favorites, push, eventSuggestions, personalMail, passkeys, resources, cloud, incoming, personalCalendars, travel, smartTravel, partners, managedENT, control, systemStatus, baseURL };
 }
 const dummyHash = passwordHash('invalid-account-password');
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   process.umask(0o077);
-  const { app, engine, browsers, mailer, audit, pronote, push, eventSuggestions, personalMail, passkeys, resources, cloud, incoming, personalCalendars, travel, control, baseURL } = createApp();
+  const { app, engine, browsers, mailer, audit, pronote, push, eventSuggestions, personalMail, passkeys, resources, cloud, incoming, personalCalendars, travel, smartTravel, partners, managedENT, control, systemStatus, baseURL } = createApp();
   await mailer.configureEnvironment().catch(() => {});
   const adminSocket=await listenAdminSocket(control);
   audit.record('system.started', { meta: { mailReady: mailer.ready } });
   const server = app.listen(Number(process.env.AGENDA_PORT || 8020), '127.0.0.1', () => console.log('Agenda Bridge disponible : ' + baseURL + '/'));
-  const timer = setInterval(() => { void engine.tick().catch(() => {}); }, 15000);
+  const timer = setInterval(() => { void systemStatus.track('ent',()=>engine.tick()).catch(() => {}); }, 15000);
   timer.unref();
-  void engine.tick().catch(() => {});
-  const pronoteTimer = setInterval(() => { void pronote.tick().catch(() => {}); }, 15000); pronoteTimer.unref();
-  const mailTimer = setInterval(() => { void mailer.tick().catch(() => {}); }, 15000); mailTimer.unref();
+  void systemStatus.track('ent',()=>engine.tick()).catch(() => {});
+  const pronoteTimer = setInterval(() => { void systemStatus.track('pronote',()=>pronote.tick()).catch(() => {}); }, 15000); pronoteTimer.unref();
+  const mailTimer = setInterval(() => { void systemStatus.track('mail',()=>mailer.tick()).catch(() => {}); }, 15000); mailTimer.unref();
   const eventTimer=setInterval(()=>void eventSuggestions.tick().catch(()=>{}),15000);eventTimer.unref();
   const calendarTimer=setInterval(()=>void personalCalendars.tick().catch(()=>{}),60000);calendarTimer.unref();
-  const pushTimer=setInterval(()=>void push.tick().catch(()=>{}),15000);pushTimer.unref();
+  const pushTimer=setInterval(()=>void systemStatus.track('push',()=>push.tick()).catch(()=>{}),15000);pushTimer.unref();
   const cleanup = setInterval(() => {
     // Active sessions and login windows are kept only as long as needed.
     engine.store.prune();
   }, 60000); cleanup.unref();
-  for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => { audit.record('system.stopped'); control.close(); push.close(); eventSuggestions.close(); personalMail.close(); passkeys.close(); cloud.close();incoming.close();personalCalendars.close();travel.close();clearInterval(calendarTimer); await adminSocket.close(); clearInterval(timer); clearInterval(cleanup); clearInterval(mailTimer); clearInterval(pronoteTimer); clearInterval(pushTimer); clearInterval(eventTimer); await browsers.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 8000).unref(); });
+  const managedTimer=setInterval(()=>void systemStatus.track('managed',()=>managedENT.tick()).catch(()=>{}),15000);managedTimer.unref();
+  const statusTimer=setInterval(()=>systemStatus.snapshot(),30000);statusTimer.unref();systemStatus.snapshot();
+  for (const signal of ['SIGTERM','SIGINT']) process.on(signal,()=>{clearInterval(statusTimer);partners.close();managedENT.close();clearInterval(managedTimer);});
+  for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => { audit.record('system.stopped'); control.close(); push.close(); eventSuggestions.close(); personalMail.close(); passkeys.close(); cloud.close();incoming.close();personalCalendars.close();travel.close();smartTravel.close();clearInterval(calendarTimer); await adminSocket.close(); clearInterval(timer); clearInterval(cleanup); clearInterval(mailTimer); clearInterval(pronoteTimer); clearInterval(pushTimer); clearInterval(eventTimer); await browsers.close(); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 8000).unref(); });
 }

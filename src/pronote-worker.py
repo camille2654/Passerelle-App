@@ -7,11 +7,19 @@ import datetime as dt
 import json
 import logging
 import os
+import re
 import sys
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
+from importlib.util import spec_from_file_location, module_from_spec
+from pathlib import Path
+
+_session_spec=spec_from_file_location("passerelle_pronote_session",Path(__file__).with_name("pronote-session.py"))
+_session=module_from_spec(_session_spec)
+_session_spec.loader.exec_module(_session)
 
 logging.disable(logging.CRITICAL)
+phase='startup'
 
 
 def emit(kind, **values):
@@ -46,19 +54,49 @@ def section(read):
 
 
 def main(payload):
+    global phase
+    phase='bootstrap'
     import requests
     import pronotepy
 
-    raw_url = payload.get("qr", {}).get("url") or payload.get("credentials", {}).get("pronote_url")
+    raw_url = payload.get("ent", {}).get("url") or payload.get("credentials", {}).get("pronote_url")
     expected = urlsplit(raw_url)
-    if expected.scheme != "https" or expected.username or expected.password or expected.port or not expected.hostname or not expected.hostname.endswith(".index-education.net"):
+    if expected.scheme != "https" or expected.username or expected.password or expected.port or not expected.hostname or not re.fullmatch(r"[a-z0-9-]+\.index-education\.net", expected.hostname) or not re.fullmatch(r"/pronote/(?:mobile\.)?eleve\.html", expected.path) or expected.fragment:
         raise ValueError("INVALID_URL")
+    bootstrap = payload.get("ent") if payload.get("mode") == "ent" else None
+    if bootstrap and (len(bootstrap.get("html", "").encode()) > 1024 * 1024 or len(bootstrap.get("cookies", [])) > 200):
+        raise ValueError("INVALID_ENT")
+    initial_html = bootstrap.get("html") if bootstrap else None
+    initial_attributes=_session.bootstrap_attributes(bootstrap.get("attributes")) if bootstrap and bootstrap.get("attributes") is not None else None
+    credentials=dict(payload.get("credentials") or {})
+    if payload.get("mode")=="token":
+        credentials["pronote_url"]=_session.mobile_url(expected)
+    cookies=bootstrap.get("cookies",[]) if bootstrap else credentials.pop("pronote_cookies",[])
+    jar=_session.load_cookies(requests,cookies,expected.hostname)
+    def exported(client):
+        saved=client.export_credentials()
+        saved["pronote_cookies"]=_session.export_cookies(jar,expected.hostname)
+        if bootstrap:
+            saved["pronote_url"]=_session.mobile_url(expected)
+        return saved
     original_request = requests.Session.request
 
     def guarded_request(session, method, url, **kwargs):
+        nonlocal initial_html
         parsed = urlsplit(url)
         if parsed.scheme != "https" or parsed.netloc != expected.netloc or not parsed.path.startswith("/pronote/") or parsed.username or parsed.password:
             raise ValueError("INVALID_URL")
+        if initial_html is not None and method.upper() == "GET" and parsed.path == expected.path:
+            response = requests.Response()
+            response.status_code = 200
+            response.url = url
+            response._content = initial_html.encode("utf-8")
+            response.encoding = "utf-8"
+            initial_html = None
+            return response
+        merged=jar.copy()
+        requests.cookies.merge_cookies(merged,kwargs.get("cookies") or {})
+        kwargs["cookies"]=merged
         kwargs["allow_redirects"] = False
         kwargs["timeout"] = (12, 20)
         # Preserve inherited proxies and trust the machine's CA bundle.
@@ -68,7 +106,8 @@ def main(payload):
         response = original_request(session, method, url, **kwargs)
         if response.is_redirect:
             response.close()
-            raise ValueError("REDIRECT_REFUSED")
+            raise ValueError("ENT_AUTH_REQUIRED")
+        requests.cookies.merge_cookies(jar,response.cookies)
         chunks, size = [], 0
         for chunk in response.iter_content(65536):
             size += len(chunk)
@@ -81,28 +120,70 @@ def main(payload):
         return response
 
     requests.Session.request = guarded_request
+    # Preserve the data literal already captured before the browser consumed it.
+    # A parsed JSON bootstrap also handles current head-script PRONOTE pages.
+    from pronotepy.pronoteAPI import _Communication
+    original_parse=_Communication._parse_html
+    def parse_html(communication,html):
+        if initial_attributes is not None and bootstrap and html==bootstrap.get("html"):
+            return dict(initial_attributes)
+        match=re.search(r"\bStart\s*\(\s*(?=\{)",html)
+        if match:
+            try:
+                values,_=json.JSONDecoder().raw_decode(html[match.end():])
+                if isinstance(values,dict) and "h" in values and "a" in values:
+                    return values
+            except (ValueError,TypeError):
+                pass
+        return original_parse(communication,html)
+    _Communication._parse_html=parse_html
     original_post = pronotepy.ClientBase.post
 
     def saving_post(client, name, *args, **kwargs):
+        if bootstrap and name == "Identification" and client.ent:
+            client.username = client.attributes.get("e", "")
         result = original_post(client, name, *args, **kwargs)
         if name == "Authentification":
             data = result.get("dataSec", {}).get("data", {})
             token = data.get("jetonConnexionAppliMobile")
             if token and data.get("cle"):
                 client.password = token
-                emit("credentials", credentials=client.export_credentials())
+                saved = exported(client)
+                if bootstrap:
+                    saved["pronote_url"] = _session.mobile_url(expected)
+                emit("credentials", credentials=saved)
         return result
 
     pronotepy.ClientBase.post = saving_post
     options = {"device_name": "Passerelle", "account_pin": payload.get("accountPin") or None}
-    if payload["mode"] == "qr":
-        client = pronotepy.Client.qrcode_login(payload["qr"], payload["pin"], payload["uuid"], **options)
+    if payload["mode"] == "ent":
+        phase="ent-auth"
+        client = pronotepy.Client(raw_url, "ENT", "ENT", ent=lambda *_args, **_kwargs: jar,
+                                  mode="qr_code", uuid=payload["uuid"], **options)
+    elif payload["mode"] == "token":
+        phase="token-auth"
+        client = pronotepy.Client.token_login(**credentials, **options)
     else:
-        client = pronotepy.Client.token_login(**payload["credentials"], **options)
+        raise ValueError("INVALID_MODE")
     if not client.logged_in:
-        emit("error", code="AUTH_EXPIRED")
+        emit("error", code="AUTH_EXPIRED",stage=phase)
         return
-    emit("credentials", credentials=client.export_credentials())
+    saved = exported(client)
+    if bootstrap:
+        if saved["password"] == "ENT" or not saved["username"]:
+            raise ValueError("MOBILE_TOKEN_UNAVAILABLE")
+        saved["pronote_url"] = _session.mobile_url(expected)
+    emit("credentials", credentials=saved)
+    if bootstrap:
+        # Verify that the exported mobile token can really reconnect before
+        # reporting success. This also rotates and saves it through saving_post.
+        phase="mobile-verify"
+        client = pronotepy.Client.token_login(**{key:value for key,value in saved.items() if key!="pronote_cookies"}, **options)
+        if not client.logged_in:
+            emit("error", code="AUTH_EXPIRED",stage=phase)
+            return
+        emit("credentials", credentials=exported(client))
+    phase="read-data"
     identity = {"id": text(client.info.id, 100), "name": text(client.info.name, 200), "className": text(client.info.class_name, 120), "school": text(client.info.establishment, 200)}
     periods = list(client.periods)[:12]
     calendar = [{"id": text(p.id, 100), "label": text(p.name, 150), "start": date(p.start), "end": date(p.end)} for p in periods]
@@ -162,14 +243,16 @@ def main(payload):
     snapshot = {"identity": identity, "periods": calendar, "window": {"start": start.isoformat(), "end": end.isoformat()}, "sections": {}}
     for key, read in [("grades", grades), ("reports", reports), ("attendance", attendance), ("homework", homework), ("courses", lessons)]:
         snapshot["sections"][key] = section(read)
+    emit("credentials",credentials=exported(client))
     emit("snapshot", snapshot=snapshot)
 
 
 if __name__ == "__main__":
     try:
-        payload = json.loads(sys.stdin.readline(32768))
+        payload = json.loads(sys.stdin.readline(2 * 1024 * 1024))
         main(payload)
     except Exception as error:
         name = type(error).__name__
-        code = "MFA_REQUIRED" if name == "MFAError" else ("AUTH_EXPIRED" if "payload" in locals() and payload.get("mode") == "token" else "INVALID_QR") if name in ("QRCodeDecryptError", "CryptoError") else "UNSUPPORTED" if name == "UnsupportedOperation" else "SOURCE_UNAVAILABLE"
-        emit("error", code=code)
+        message=str(error)
+        code = "ENT_AUTH_REQUIRED" if message=="ENT_AUTH_REQUIRED" else "MFA_REQUIRED" if name == "MFAError" else ("AUTH_EXPIRED" if "payload" in locals() and payload.get("mode") == "token" else "ENT_AUTH_REQUIRED") if name in ("QRCodeDecryptError", "CryptoError") else "UNSUPPORTED" if name == "UnsupportedOperation" else "SOURCE_UNAVAILABLE"
+        emit("error", code=code,stage=phase)

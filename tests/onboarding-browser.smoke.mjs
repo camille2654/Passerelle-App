@@ -97,6 +97,8 @@ try{
   await page.getByRole('button',{name:'Créer mon espace',exact:false}).click();
   await welcome().getByRole('heading',{name:'Bienvenue sur Passerelle',exact:true}).waitFor();
   const member=userByLogin('alex-onboarding');
+  // Release presentation is exercised separately; keep this scenario on the guide.
+  await page.evaluate(async()=>{await api('releases/seen',{releaseId:state.user.release.id});await refresh();});
   assert.ok(member);assert.equal(member.admin,false);assert.equal(member.onboarding.status,'new');
   assert.equal(await welcome().evaluate(el=>el.contains(document.activeElement)),true,'welcome receives keyboard focus');
   for(let i=0;i<8;i++){await page.keyboard.press('Tab');assert.equal(await welcome().evaluate(el=>el.contains(document.activeElement)),true,'welcome traps focus while modal');}

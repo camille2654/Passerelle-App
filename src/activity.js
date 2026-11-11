@@ -1,5 +1,6 @@
 import {digest} from './store.js';
 import {parisDate} from './work.js';
+import {agendaImpactDays} from './agenda-impact.js';
 
 const RETENTION = 90 * 86400000;
 export const studentScope = user => user.studentId || null;
@@ -31,6 +32,7 @@ export function changeView(store, user, now) {
     cursor: state.cursor, afterCursor: previous ?? 0, count: unread.length, items: unread.slice(-100).reverse(),
     truncated: unread.length > 100 || previous !== null && oldest > previous + 1 && state.cursor > previous,
     retentionDays: 90,
+    scheduleImpact: previous===null?{complete:true,days:[]}:agendaImpactDays(user.calendarEvents,unread,{complete:!(oldest>previous+1&&state.cursor>previous)}),
     token: store.seal({userId: user.id, scope: studentScope(user), cursor: state.cursor, at: now})
   };
 }

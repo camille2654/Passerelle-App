@@ -9,11 +9,11 @@ test('Pronote accepts individual hosted student instances and rejects arbitrary 
   for (const host of ['1234567a', 'another-school', 'demo']) assert.equal(validatePronoteURL('https://' + host + '.index-education.net/pronote/mobile.eleve.html').hostname, host + '.index-education.net');
   for (const url of ['http://demo.index-education.net/pronote/eleve.html', 'https://127.0.0.1/pronote/eleve.html', 'https://demo.index-education.net.evil.invalid/pronote/eleve.html', 'https://demo.index-education.net:8020/pronote/eleve.html', 'https://user:pass@demo.index-education.net/pronote/eleve.html', 'https://demo.index-education.net/pronote/parent.html', 'https://demo.index-education.net/other/eleve.html']) assert.throws(() => validatePronoteURL(url));
 });
-async function connect(f) { const start = await f.request('pronote/connect', {qr: qrFixture, pin: '1234'}); assert.equal(start.status, 200); assert.equal((await f.request('pronote/confirm', {candidate: start.body.candidate, confirm: true})).status, 200); return start.body; }
+async function connect(f) { const start = await f.captureENT(); assert.equal(start.status, 200); assert.equal((await f.request('pronote/confirm', {candidate: start.body.candidate, confirm: true})).status, 200); return start.body; }
 test('Pronote requires explicit same-student confirmation and protects credentials, imported records and source provenance', async () => {
   const f = await hubFixture(); try {
-    assert.equal((await f.request('pronote/connect', {qr: {...qrFixture, url: 'https://localhost/pronote/eleve.html'}, pin: '1234'})).status, 400);
-    const start = await f.request('pronote/connect', {qr: JSON.stringify(qrFixture), pin: '1234'}); assert.equal(start.status, 200); assert.equal(start.body.entStudent, 'Camille ENT');
+    assert.equal((await f.captureENT('a',{url:'https://localhost/pronote/eleve.html'})).status, 400);
+    const start = await f.captureENT(); assert.equal(start.status, 200); assert.equal(start.body.entStudent, 'Camille ENT');
     assert.equal((await f.request('pronote')).body.linked, false); assert.equal(userWork(f.store.user('a')).length, 1);
     assert.equal((await f.request('pronote/confirm', {candidate: start.body.candidate, confirm: true}, 'b')).status, 409);
     assert.equal((await f.request('pronote/confirm', {candidate: start.body.candidate, confirm: false})).status, 409);
@@ -54,7 +54,7 @@ test('ambiguous homework is retained and partial unsupported sections do not adv
 test('pending confirmation survives reload and each user can consult a distant published week of their own school year', async () => {
   const f = await hubFixture(); try {
     f.controls.snapshot.sections.courses.data.push({id: 'future-course', subject: 'Français', start: '2027-04-06T07:00:00Z', end: '2027-04-06T08:00:00Z', location: 'C105', cancelled: false});
-    const start = await f.request('pronote/connect', {qr: qrFixture, pin: '1234'});
+    const start = await f.captureENT();
     const pending = (await f.request('pronote')).body.pending; assert.equal(pending.candidate, start.body.candidate); assert.equal((await f.request('pronote', undefined, 'b')).body.pending, null);
     await f.request('pronote/confirm', {candidate: pending.candidate, confirm: true});
     assert.ok(!(await f.request('pronote/data')).body.courses.some(item => item.title === 'Français'));

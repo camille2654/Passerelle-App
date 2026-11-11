@@ -35,7 +35,16 @@ export class Store {
     return JSON.parse(Buffer.concat([cipher.update(b.subarray(28)), cipher.final()]).toString('utf8'));
   }
   user(id) { return this.state.users.find(u => u.id === id); }
-  update(id, values) { const u = this.user(id); if (!u) throw new Error('Unknown user'); Object.assign(u, values); this.save(); return u; }
+  update(id, values) {
+    const u = this.user(id); if (!u) throw new Error('Unknown user');
+    // A delegated calendar must never silently follow another pupil or a renewed feed.
+    const changed = ['studentId','schoolName','skolengoConnectionId','feedHash','suspendedAt','archivedAt'].some(key=>Object.hasOwn(values,key)&&values[key]!==u[key]) || Object.hasOwn(values,'skolengo')&&Boolean(values.skolengo)!==Boolean(u.skolengo);
+    if (changed && u.partnerGrants?.length) {
+      u.partnerEpoch=(u.partnerEpoch||0)+1;
+      for(const grant of u.partnerGrants)if(!grant.revokedAt){grant.invalidatedAt=Date.now();grant.accessHash=null;grant.links=[];}
+    }
+    Object.assign(u, values); this.save(); return u;
+  }
   prune() {
     const now = Date.now();
     for (const key of ['sessions', 'invites']) this.state[key] = this.state[key].filter(s => s.expires > now);

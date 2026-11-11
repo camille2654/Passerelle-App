@@ -1,5 +1,5 @@
 // Private API responses, calendars and ENT images are deliberately network-only.
-const VERSION = 'passerelle-public-v4.15.2';
+const VERSION = 'passerelle-public-v4.19.0';
 const BASE = new URL('./', self.location.href);
 const OFFLINE = new URL('offline.html', BASE).pathname;
 const PUBLIC_FILES = ['offline.html', 'offline.css', 'icons/favicon-64.png'].map(name => new URL(name, BASE).pathname);
@@ -15,7 +15,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || url.origin !== BASE.origin || !url.pathname.startsWith(BASE.pathname)) return;
   if (PUBLIC_FILES.includes(url.pathname)) { event.respondWith(fetch(event.request).catch(() => caches.match(url.pathname))); return; }
   // An offline navigation shows a neutral public page, never the last user's dashboard.
-  if (event.request.mode === 'navigate' && !url.pathname.startsWith(BASE.pathname + 'api/') && !url.pathname.startsWith(BASE.pathname + 'calendars/')) {
+  if (event.request.mode === 'navigate' && !url.pathname.startsWith(BASE.pathname + 'api/') && !url.pathname.startsWith(BASE.pathname + 'calendars/') && !url.pathname.startsWith(BASE.pathname + 'partner-calendars/')) {
     event.respondWith(fetch(event.request).catch(async () => await caches.match(OFFLINE) || new Response('Connexion Internet nécessaire.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })));
   }
 });

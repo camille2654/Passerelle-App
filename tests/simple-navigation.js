@@ -5,7 +5,7 @@ export async function openArea(page,label){
  if(primary[label]){await main.getByRole('button',{name:primary[label],exact:true}).click();return;}
  await main.getByRole('button',{name:'Plus',exact:true}).click();
  const route={'Mon ENT':'Mon lycée','Mes outils':'Rechercher','Mon abonnement ICS':'Réglages'};
- if(route[label]){await page.locator('#page-more .simple-link').filter({has:page.locator('strong',{hasText:new RegExp('^'+route[label]+'$')})}).click();if(label==='Mon abonnement ICS')await page.locator('#page-settings .simple-link').filter({hasText:'ENT et abonnement agenda'}).click();return;}
+ if(route[label]){await page.locator('#page-more .simple-link').filter({has:page.locator('strong',{hasText:new RegExp('^'+route[label]+'$')})}).click();if(label==='Mon abonnement ICS'){if(!await page.locator('[data-settings-group=school]').evaluate(n=>n.open))await page.locator('[data-settings-group=school]>summary').click();await page.locator('#page-settings .simple-link').filter({hasText:'ENT et abonnement agenda'}).click();}return;}
  await page.locator('#page-more .simple-link').filter({has:page.locator('strong',{hasText:'Administration'})}).click();
  const admin={'Pilotage':'Pilotage','Comptes & notifications':'Comptes et mails','Journal d’activité':'Journal','Assistance utilisateurs':'Assistance'};
  if(label!=='Pilotage')await page.locator('.simple-admin-nav').getByRole('button',{name:admin[label],exact:true}).click();
@@ -15,10 +15,11 @@ export async function openTool(page,label){
  if(label==='Semaine'){await primary.getByRole('button',{name:'Agenda',exact:true}).click();return;}
  if(label==='Devoirs & contrôles'){await primary.getByRole('button',{name:'Devoirs',exact:true}).click();return;}
  await primary.getByRole('button',{name:'Plus',exact:true}).click();
- const direct={Rechercher:'Rechercher',Changements:'Nouveautés',Assistance:'Aide et contact'};
- if(direct[label]){await page.locator('#page-more .simple-link').filter({has:page.locator('strong',{hasText:new RegExp('^'+direct[label]+'$')})}).click();return;}
+ const direct={Rechercher:'Rechercher',Changements:'Changements de mon agenda',Assistance:'Aide et contact'};
+ if(direct[label]){if(['Changements','Assistance'].includes(label)&&!await page.locator('.more-secondary').evaluate(n=>n.open))await page.locator('.more-secondary>summary').click();await page.locator('#page-more .simple-link').filter({has:page.locator('strong',{hasText:new RegExp('^'+direct[label]+'$')})}).click();return;}
  if(['Matières','Pronote','Application','Préférences'].includes(label)){
   await page.locator('#page-more .simple-link').filter({has:page.locator('strong',{hasText:/^Réglages$/})}).click();
+  const group={Matières:'agenda',Pronote:'school',Application:'account',Préférences:'notifications'}[label];if(!await page.locator('[data-settings-group='+group+']').evaluate(n=>n.open))await page.locator('[data-settings-group='+group+']>summary').click();
   const title={Matières:'Matières',Pronote:'Pronote',Application:'Apparence et application',Préférences:'Accueil et vacances'}[label];await page.locator('#page-settings .simple-link').filter({has:page.locator('strong',{hasText:new RegExp('^'+title+'$')})}).click();return;
  }
  if(!await page.locator('.simple-toolbox').evaluate(node=>node.open))await page.locator('.simple-toolbox summary').click();const target={Bilan:'Bilan de la semaine'}[label]||label;
