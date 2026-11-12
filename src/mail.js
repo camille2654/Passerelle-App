@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 7405)
+Total output lines: 232
+
 import {accountActive,automationAllowed} from './operational-state.js';
 import nodemailer from 'nodemailer';
 import { readFileSync } from 'node:fs';
@@ -25,7 +28,7 @@ const fullDate = value => new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/P
 export function briefMessage(user, brief, baseURL, unsubscribeURL) {
   const color = value => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : '#7f9671';
   const subjectName = item => item.subject?.label || 'Autre matière';
-  const header = (title, count, label) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:24px 0 10px;border-collapse:collapse"><tr><td><h2 style="margin:0;font-size:16px;line-height:1.4;font-weight:bold;letter-spacing:-.2px;color:#213b35">${title}</h2></td><td align="right" style="white-space:nowrap"><span style="display:inline-block;padding:5px 9px;border-radius:7px;background:#edf2e5;color:#536a4b;font-size:10px;line-height:1.2">${count} ${label}</span></td></tr></table>`;
+  const header = (title, count, label, icon) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:24px 0 10px;border-collapse:collapse"><tr><td><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr><td width="32" height="32" valign="middle" align="center" bgcolor="#edf2e5" style="width:32px;height:32px;border-radius:9px;background:#edf2e5"><img src="cid:passerelle-${icon}" alt="" width="18" height="18" style="display:block;width:18px;height:18px;border:0"></td><td valign="middle" style="padding-left:9px"><h2 style="margin:0;font-size:16px;line-height:1.4;font-weight:bold;letter-spacing:-.2px;color:#213b35">${title}</h2></td></tr></table></td><td align="right" style="white-space:nowrap"><span style="display:inline-block;padding:5px 9px;border-radius:7px;background:#edf2e5;color:#536a4b;font-size:10px;line-height:1.2">${count} ${label}</span></td></tr></table>`;
   const courseRows = brief.courses.map(course => {
     const accent = color(course.subject?.hex);
     const title = course.subject?.label || course.rawTitle || String(course.title || '').replace(/^\p{Extended_Pictographic}\s*/u, '');
@@ -60,54 +63,7 @@ export function briefMessage(user, brief, baseURL, unsubscribeURL) {
   const countCell = (count, label) => `<td width="31%" align="left" valign="middle" bgcolor="#edf2e5" style="width:31%;padding:10px 12px;border-radius:10px;background:#edf2e5"><strong style="display:block;font-size:19px;line-height:1.2;color:#213b35">${count}</strong><span style="font-size:10px;line-height:1.5;color:#63716a">${label}</span></td>`;
   const summary = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:20px 0 23px;border-collapse:separate;border-spacing:0"><tr>${countCell(brief.courses.length, 'cours')}<td width="3.5%" style="width:3.5%;font-size:0">&nbsp;</td>${countCell(brief.homework.length, 'devoirs')}<td width="3.5%" style="width:3.5%;font-size:0">&nbsp;</td>${countCell(brief.exams.length, 'contrôles')}</tr></table>`;
   const empty = message => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #dfe4d8;border-radius:11px;border-collapse:separate;border-spacing:0;background:#f6f5ef"><tr><td style="padding:13px 14px;font-size:11px;line-height:1.65;color:#63716a">${message}</td></tr></table>`;
-  const content = `<p style="margin:0 0 7px;font-size:9px;line-height:1.5;font-weight:bold;letter-spacing:1.5px;color:#63716a">${brief.returning ? 'AVANT LA REPRISE' : 'BRIEF DU SOIR'}</p><h1 style="margin:0;font-size:29px;line-height:1.2;letter-spacing:-.8px;color:#213b35">${brief.returning ? 'La reprise' : 'Demain'}</h1><p style="margin:6px 0 0;font-size:15px;line-height:1.5;font-weight:bold;text-transform:capitalize;color:#536a4b">${escape(fullDate(brief.date))}</p><p style="margin:12px 0 0;font-size:13px;line-height:1.7;color:#63716a">Bonjour ${escape(user.name)}, voici les repères utiles pour votre journée.</p>${summary}${warning ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 18px;border:1px solid #eadfc9;border-left:3px solid #b27c3d;border-radius:10px;border-collapse:separate;border-spacing:0;background:#fbf7ed"><tr><td style="padding:11px 13px;font-size:11px;line-height:1.65;color:#795c37"><strong style="display:block;margin-bottom:3px;color:#795c37">À savoir</strong>${escape(warning)}</td></tr></table>` : ''}${header(brief.returning ? 'Votre journée de reprise' : 'Cours', brief.courses.length, brief.courses.length === 1 ? 'cours' : 'cours')}${courseRows || empty('Aucun cours publié pour le moment.')}${header(homeworkTitle, brief.homework.length, brief.homework.length === 1 ? 'devoir' : 'devoirs')}${workCards(brief.homework) || empty('Aucun devoir transmis pour cette période.')}${header(examTitle, brief.exams.length, brief.exams.length === 1 ? 'contrôle' : 'contrôles')}${workCards(brief.exams) || empty('Aucun contrôle renseigné pour cette période.')}${brief.changes.length ? `${header(changeTitle, brief.changes.length, brief.changes.length === 1 ? 'changement' : 'changements')}${changeCards}` : ''}<p style="margin:18px 0 0;font-size:10px;line-height:1.7;color:#63716a">${escape(freshness)} Les contrôles repérés dans les devoirs restent à confirmer avec les consignes de l’enseignant.</p><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0;border-collapse:separate"><tr><td align="center" bgcolor="#205c50" style="border-radius:10px;background:#205c50"><a href="${escape(baseURL + '/')}" style="display:inline-block;padding:12px 18px;border:1px solid #205c50;border-radius:10px;background:#205c50;color:#ffffff;font-size:12px;line-height:1.4;font-weight:bold;text-decoration:none">Ouvrir mon espace</a></td></tr></table>`;
-  const html = mailDocument({ title: brief.returning ? 'Votre reprise · Passerelle' : 'Votre journée de demain · Passerelle', content,
-    footer: `Vous avez activé ce brief quotidien. <a href="${escape(unsubscribeURL)}" style="color:#205c50">Arrêter les envois</a>.`
-  });
-  return { subject, text, html };
-}
-export class MailEngine {
-  constructor(store, baseURL, { clock = () => Date.now(), transportFactory = config => nodemailer.createTransport(config), syncUser = null, audit = null } = {}) {
-    this.store = store; this.baseURL = baseURL; this.clock = clock; this.transportFactory = transportFactory; this.syncUser = syncUser; this.running = new Set(); this.audit = audit;
-  }
-  get ready() { return !!this.store.state.settings.smtp; }
-  publicSettings(user) {
-    const config = user.emailConfig;
-    return config ? { address: this.store.open(config.address), verified: !!config.verified, enabled: !!config.enabled, wantedEnabled: !!config.wantedEnabled, alertsEnabled: !!config.alertsEnabled, wantedAlertsEnabled: !!config.wantedAlertsEnabled, time: config.time || '20:00', pending: !!user.emailVerification && user.emailVerification.expires > this.clock(), draft: !config.verified && !user.emailVerification, expires: user.emailVerification?.expires || null, lastDelivery: user.lastBrief || null, lastChangeAlert: user.lastChangeAlert || null } : { address: '', verified: false, enabled: false, alertsEnabled: false, time: '20:00', pending: false, lastDelivery: null };
-  }
-  publicSMTP() {
-    if (!this.ready) return null;
-    const { host, port, username, fromEmail, fromName } = this.store.open(this.store.state.settings.smtp);
-    return { host, port, username, fromEmail, fromName };
-  }
-  transport(config) {
-    return this.transportFactory({ host: config.host, port: config.port, secure: config.port === 465, requireTLS: config.port !== 465, auth: { user: config.username, pass: config.password }, connectionTimeout: 12000, greetingTimeout: 12000, socketTimeout: 20000, dnsTimeout: 8000, logger: false, debug: false, disableFileAccess: true, disableUrlAccess: true });
-  }
-  async configure(input) {
-    const previous = this.ready ? this.store.open(this.store.state.settings.smtp) : {};
-    const detected = detectSMTP(input.fromEmail);
-    const config = { host: String(input.host || detected.host).trim(), port: Number(input.port || detected.port), username: String(input.username || detected.username).trim(), fromEmail: emailAddress(input.fromEmail), fromName: String(input.fromName || 'Passerelle').replace(/[\r\n]/g, '').slice(0, 80), password: String(input.password || '') };
-    if (!config.password && previous.host === config.host && previous.username === config.username) config.password = previous.password;
-    if (config.host === 'smtp.gmail.com') config.password = config.password.replace(/\s+/g, '');
-    if (!/^[a-z0-9.-]{1,253}$/i.test(config.host) || ![465, 587].includes(config.port) || !config.username || config.username.length > 320 || !config.password || config.password.length > 2000) throw new MailError('Renseignez le serveur SMTP, le port 465 ou 587, l’identifiant et le mot de passe.');
-    const transport = this.transport(config);
-    try { await transport.verify(); }
-    catch { this.audit?.record('mail.configuration_failed', { source: 'mail', level: 'error', meta: { errorCode: 'SMTP_VERIFY_FAILED' } }); throw new MailError('La connexion SMTP a échoué. Vérifiez le serveur, le port et les identifiants.', 502); }
-    finally { transport.close?.(); }
-    this.store.state.settings.smtp = this.store.seal(config); this.store.save();
-    this.audit?.record('mail.configured', { source: 'mail' });
-  }
-  async configureEnvironment(env = process.env) {
-    if (this.ready || !env.AGENDA_SMTP_PASSWORD || !env.AGENDA_SMTP_FROM) return false;
-    await this.configure({ host: env.AGENDA_SMTP_HOST, port: env.AGENDA_SMTP_PORT, username: env.AGENDA_SMTP_USER, password: env.AGENDA_SMTP_PASSWORD, fromEmail: env.AGENDA_SMTP_FROM, fromName: env.AGENDA_SMTP_NAME }); return true;
-  }
-  async send(user, content, messageKey) {
-    if(!accountActive(user))throw new MailError('Ce compte est suspendu ou archivé.',409);
-    if (!this.ready) throw new MailError('L’administrateur doit configurer l’envoi des mails dans le portail.', 409);
-    const settings = this.store.open(this.store.state.settings.smtp), transport = this.transport(settings);
-    const domain = settings.fromEmail.split('@')[1];
-    try {
-      const info = await transport.sendMail({ from: { name: settings.fromName, address: settings.fromEmail }, to: this.store.open(user.emailConfig.address), subject: content.subject, text: content.text, html: content.html, attachments: content.html?.includes('cid:passerelle-mark') ? [{ filename: 'passerelle.png', content: readFileSync(new URL('../public/brand/symbol.png', import.meta.url)), cid: 'passerelle-mark', contentType: 'image/png', contentDisposition: 'inline' }] : undefined, messageId: `<${digest(user.id + ':' + messageKey)}@${domain}>`, disableFileAccess: true, disableUrlAccess: true });
+  const content = `<p style="margin:0 0 7px;font-size:9px;line-height:1.5;font-weight:bold;letter-spacing:1.5px;color:#63716a">${brief.returning ? 'AVANT LA REPRISE' : 'BRIEF DU SOIR'}</p><h1 style="margin:0;font-size:29px;line-height:1.2;letter-spacing:-.8px;color:#213b35">${brief.returning ? 'La reprise' : 'Demain'}</h1><p style="margin:6px 0 0;font-size:15px;line-height:1.5;font-weight:bold;text-transform:capitalize;color:#536a4b">${escape(fullDate(brief.date))}</p><p style="margin:12px 0 0;font-size:13px;line-height:1.7;color:#63716a">Bonjour ${escape(user.name)}, voici les repères utiles pour votre journée.</p>${summary}${warning ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:0 0 18px;border:1px solid #eadfc9;border-left:3px solid #b27c3d;border-radius:10px;border-collapse:separate;border-spacing:0;background:#fbf7ed"><tr><td style="padding:11px 13px;font-size:11px;line-height:1.65;color:#795c37"><strong style="display:block;margin-bottom:3px;color:#795c37">À savoir</strong>${escape(warning)}</td></tr></table>` : ''}${header(brief.returning ? 'Votre journée de reprise' : 'Cours', brief.courses.length, brief.courses.length === 1 ? 'cours' : 'cours', 'calendar')}${courseRows || empty('Aucun cours publié pour le moment.')}${header(homeworkTitle, brief.homework.length, brief.homework.length === 1 ? 'devoir' : 'devoirs', 'homework')}${workCards(brief.homework) || empty('Aucun devoir transmis pour cette période.')}${header(examTitle, brief.exams.length, brief.exams.length === 1 ? 'contrôle' : 'contrôles', 'exam')}${workCards(brief.exams) || empty('Aucun contrôle renseigné pour cette période.')}${brief.changes.length ? `${header(changeTitle, brief.changes.length, brief.changes.length === 1 ? 'changement' : 'changements', 'bell')}${changeCards}` : ''}<p style="margin:18px 0 0;font-size:10px;line-height:1.7;color:#63716a">${escape(freshness)} Les contrôles repérés dans les devoirs restent à confirmer avec les consignes de l’enseignant.</p><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margi…1405 tokens truncated… settings.fromEmail }, to: this.store.open(user.emailConfig.address), subject: content.subject, text: content.text, html: content.html, attachments, messageId: `<${digest(user.id + ':' + messageKey)}@${domain}>`, disableFileAccess: true, disableUrlAccess: true });
       if (!info.accepted?.length) throw new Error('No accepted recipient');
       return info;
     } catch { throw new MailError('Le mail n’a pas pu être envoyé. Vérifiez les réglages d’envoi et réessayez.', 502); }
