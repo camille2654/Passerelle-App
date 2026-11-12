@@ -9,7 +9,7 @@
     <a href="https://github.com/camille2654/Passerelle-App/issues">Signaler un problème</a>
   </p>
   <p>
-    <img src="https://img.shields.io/badge/version-4.26.5-153D38?style=flat-square" alt="Version 4.26.5">
+    <img src="https://img.shields.io/badge/version-4.26.6-153D38?style=flat-square" alt="Version 4.26.6">
     <img src="https://img.shields.io/badge/licence-GPL--3.0--or--later-526B55?style=flat-square" alt="Licence GPL-3.0-or-later">
     <img src="https://img.shields.io/badge/interface-mobile--first-D9EF78?style=flat-square" alt="Interface conçue pour mobile">
   </p>
@@ -24,6 +24,10 @@ Passerelle rassemble au même endroit l’emploi du temps, les devoirs et les ou
 ## Cours regroupés dans les calendriers abonnés · 4.26.5
 
 Les séances strictement identiques et consécutives sont maintenant publiées comme un seul événement dans le lien ICS : mêmes matière, intitulé et salle, avec des horaires qui se touchent. Les données scolaires restent séparées dans Passerelle. Les liens d’agenda existants sont conservés et leurs abonnements sont reconstruits au démarrage du serveur.
+
+## E-mails Passerelle · 4.26.6
+
+Les briefs quotidiens présentent les cours, devoirs et contrôles dans des sections distinctes avec un résumé chiffré. Les alertes distinguent les annulations, les cours rétablis et les autres changements. Les confirmations d’adresse partagent le même gabarit visuel, avec une action claire et le lien de secours.
 
 ## L’essentiel, sans se perdre
 
