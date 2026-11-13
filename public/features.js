@@ -121,7 +121,7 @@ const features = (() => {
   document.addEventListener('cancel', event => { if (event.target.id === 'notifications-dialog') { event.preventDefault(); void motion.close(event.target); } }, true);
   document.addEventListener('click', event => { const dialog = $('#notifications-dialog'); if (event.target !== dialog) return; const box = dialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) void motion.close(dialog); });
   function select(tab){active=tab;replaceWorkspace();}
-  function open(tab){if(tab==='tomorrow'){portal.navigate('school');return;}if(tab==='changes'){hub.open('changes');return;}if(!['work','subjects'].includes(tab))return;select(tab);portal.navigate(tab==='work'?'work':'subjects');}
+  function open(tab){if(tab==='tomorrow'){portal.navigate('school');return;}if(tab==='changes'){hub.open('changes');return;}if(tab==='homework'||tab==='exams')kind=tab==='exams'?'exam':'homework';if(!['work','subjects','homework','exams'].includes(tab))return;select(tab==='homework'||tab==='exams'?'work':tab);portal.navigate(tab==='subjects'?'subjects':'work');}
   function markWorkDraft(){workDraft=true;}
   document.addEventListener('input',event=>{if(event.target.closest('#work-form,.photo-review'))workDraft=true;});
   return {markWorkDraft,isEditing:user=>workDraft&&workScope===[user?.id,user?.studentId].join(':')&&document.querySelector('#app')?.dataset.page==='work'&&!!document.querySelector('.manual-work[open]'),openNotifications,current:()=>active,select,render, renderSMTP, feedTools, handleHash, open, mount, repaintChanges: () => {const panel=$('#panel-changes');if(panel&&!panel.hidden)panel.innerHTML=changes(state.user);} };

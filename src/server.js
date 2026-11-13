@@ -48,7 +48,7 @@ import { installMenuRoutes } from './menu.js';
 import {installPersonalRoutes,personalSettings} from './personal.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const VERSION = '4.26.6';
+const VERSION = '4.26.7';
 export function createApp({ dataDir = process.env.AGENDA_DATA_DIR || path.join(root, 'data'), baseURL = process.env.AGENDA_BASE_URL || 'http://127.0.0.1:8020/agenda', bootstrap = true, clock = () => Date.now(), syncOptions = {}, mailOptions = {}, auditOptions = {}, plannerOptions = {}, schoolOptions = {}, menuOptions = {}, pronoteOptions = {}, controlOptions = {}, pushOptions = {}, captureOptions = {}, favoriteOptions = {}, personalMailOptions = {}, passkeyOptions = {}, personalCalendarOptions = {}, travelOptions = {}, smartTravelOptions = {}, managedOptions = {}, resourceOptions = {}, incomingOptions = {} } = {}) {
   baseURL = baseURL.replace(/\/$/, '');
   const parsed = new URL(baseURL), basePath = parsed.pathname.replace(/\/$/, '');

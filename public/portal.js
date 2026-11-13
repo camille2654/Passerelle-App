@@ -41,7 +41,14 @@ const portal = (() => {
     $('#page-work').append(workspace);$('#page-calendar').append(connections,automation,note);$('#page-calendar').insertAdjacentHTML('afterbegin',experience.connection(u));
     if(u.admin)oldSettings.forEach(el=>$('#page-people').append(el));
     let context=$('#portal-context');if(!context){context=document.createElement('span');context.id='portal-context';$('.topbar').prepend(context);}context.textContent='Passerelle';
-    show(page,true);extras.onUser(u);personal.mount(u);
+    show(page,true);extras.onUser(u);personal.mount(u);openBriefDestination();
+  }
+  function openBriefDestination(){
+    const url=new URL(window.location.href),destination=url.searchParams.get('ouvrir');
+    const pages={agenda:'agenda',devoirs:'devoirs',controles:'controles',notifications:'notifications'};
+    if(!Object.hasOwn(pages,destination))return;
+    url.searchParams.delete('ouvrir');history.replaceState(history.state,'',url.pathname+url.search+url.hash);
+    if(destination==='agenda')extras.open('week');else if(destination==='devoirs')features.open('homework');else if(destination==='controles')features.open('exams');else features.openNotifications('email');
   }
   function show(value,rebuilt=false){
     if(!title[value]||!state?.user||adminPages.includes(value)&&!state.user.admin)return;
